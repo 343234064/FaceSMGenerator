@@ -1,7 +1,8 @@
 #pragma once
 
-#include <Windows.h>
+#include <windows.h>
 #include <string>
+#include <vector>
 #include "FaceSMProcess.h"
 
 /************************************
@@ -294,7 +295,7 @@ protected:
 		ThreadPriority InitPriority = ThreadPriority::Normal,
 		UINT64 AffinityMask = PlatformAffinity::GetNormalThradMask()) override;
 
-	static DWORD ThreadEntrance(LPVOID Object)
+	static DWORD WINAPI ThreadEntrance(LPVOID Object)
 	{
 		return ((WindowsThread*)Object)->RunWrapper();
 	}
@@ -322,14 +323,12 @@ public:
 	/****Call in Client****/
 	bool Kick(int RequestType, void* Data);
 	bool IsWorking();
-	float CanGetResutl();
+	float GetResult(void* Result);
 
 private:
 	void InternelDoRequest();
-	void Report();
 
 private:
-	Serializer* FileSerializerPtr;
 	WindowsThread* WriterThreadPtr;
 
 	WindowsCriticalSection CriticalSection;
@@ -337,6 +336,12 @@ private:
 	AtomicCounter StopTrigger;
 	AtomicCounter WorkingCounter;
 	AtomicCounter ReportCounter;
+
+	std::vector<int> QuestList;
+	std::vector<int> ResultList;
+
+	int CurrentQuestPos;
+	int CurrentResultPos;
 
 	float Progress;
 };

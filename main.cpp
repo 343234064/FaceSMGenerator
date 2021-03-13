@@ -5,6 +5,7 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 #include "FaceSMProcess.h"
+#include "ThreadProcess.h"
 
 #include <ShObjIdl_core.h>
 #include <stdio.h>
@@ -15,8 +16,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image/stb-master/stb_image.h"
-//#define STB_IMAGE_WRITE_IMPLEMENTATION
-//#include "stb_image/stb-master/stb_image_write.h"
+
 #include <d3d11.h>
 #define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
@@ -196,7 +196,7 @@ class UIManager
 {
 #define DIGIT_INPUTTEXT_SIZE 8
 #define TEXTUREBOX_STATE_TEXT_SIZE 32
-#define GENERATE_HINT_TEXT_SIZE 128
+#define HINT_TEXT_SIZE 128
 
  typedef std::vector<TextureboxItem>::iterator ItemIter;
 public:
@@ -205,14 +205,24 @@ public:
     char SampleTimesText[DIGIT_INPUTTEXT_SIZE] = "200";
     char BlurSizeText[DIGIT_INPUTTEXT_SIZE] = "4";
     char TextureboxStateText[TEXTUREBOX_STATE_TEXT_SIZE] = "";
-    char GenerateHintText[GENERATE_HINT_TEXT_SIZE] = "";
-    float Progress = 0.0f;
+    char GenerateHintText[HINT_TEXT_SIZE] = "";
+    char ProgressHintText[HINT_TEXT_SIZE] = "";
+    
     EngineTextureID* PreviewTexture = NULL;
+
+private:
+    ThreadProcesser* AsyncProcesser = nullptr;
 
 public:
     UIManager() {}
     ~UIManager()
     {
+        if (AsyncProcesser != nullptr)
+        {
+            delete AsyncProcesser;
+            AsyncProcesser = nullptr;
+        }
+
         ItemIter it;
         for (it = TextureboxList.begin(); it != TextureboxList.end(); it++)
         {
@@ -281,7 +291,7 @@ public:
         if (TextureboxList.size() < 2)
         {
             Ready = false;
-            snprintf(GenerateHintText, GENERATE_HINT_TEXT_SIZE, "Please add at least 2 texture");
+            snprintf(GenerateHintText, HINT_TEXT_SIZE, "Please add at least 2 texture");
         }
         else {
             for (int i = 0; i < TextureboxList.size(); i++)
@@ -289,7 +299,7 @@ public:
                 TextureboxItem& Item = TextureboxList[i];
                 if (!Item.Loaded)
                 {
-                    snprintf(GenerateHintText, GENERATE_HINT_TEXT_SIZE, "Texture %d still unload in texture box", i);
+                    snprintf(GenerateHintText, HINT_TEXT_SIZE, "Texture %d still unload in texture box", i);
                     Ready = false;
                     break;
                 }
@@ -301,7 +311,7 @@ public:
                 }
                 if (Width != Item.Width || Height != Item.Height)
                 {
-                    snprintf(GenerateHintText, GENERATE_HINT_TEXT_SIZE, "The width and height of Texture %d is not consistent with the others", i);
+                    snprintf(GenerateHintText, HINT_TEXT_SIZE, "The width and height of Texture %d is not consistent with the others", i);
                     Ready = false;
                     break;
                 }
@@ -310,8 +320,24 @@ public:
 
         if (Ready)
         {
-            snprintf(GenerateHintText, GENERATE_HINT_TEXT_SIZE, "");
+            snprintf(GenerateHintText, HINT_TEXT_SIZE, "");
 
+
+            if (AsyncProcesser == nullptr)
+            {
+                AsyncProcesser = new ThreadProcesser();
+            }
+
+            bool Success = false;
+            Success = AsyncProcesser->Kick(1, nullptr);
+            if (!Success) {
+                snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
+            }
+            else
+            {
+                snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
+            }
+            /*
             SDFGenerator Generator;
             for (auto Item : TextureboxList)
             {
@@ -340,13 +366,23 @@ public:
                 PreviewTexture = Texture;
                 
             }
-            
+            */
         }
     }
 
     void OnBakeButtonClicked()
     {
 
+    }
+
+    float GetProgress()
+    {
+        if (AsyncProcesser == nullptr)
+            return 0.0f;
+
+        int Result = -1;
+        float Progress = AsyncProcesser->GetResult(&Result);
+        return Progress;
     }
 
 private:
@@ -679,7 +715,11 @@ int main(int, char**)
 
             ImGui::Text("");
             ImGui::Text("Progress:");
-            ImGui::ProgressBar(gUIManager.Progress, ImVec2(-1.0f, 0.0f));
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1, 0, 0, 1), gUIManager.ProgressHintText);
+
+            float Progress = gUIManager.GetProgress();
+            ImGui::ProgressBar(Progress, ImVec2(-1.0f, 0.0f));
 
             ImGui::End();
         }

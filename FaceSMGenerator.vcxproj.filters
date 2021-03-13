@@ -17,6 +17,7 @@
       <Filter>imgui</Filter>
     </ClCompile>
     <ClCompile Include="FaceSMProcess.cpp" />
+    <ClCompile Include="ThreadProcess.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui_impl_dx11.h" />
@@ -46,6 +47,7 @@
       <Filter>stb_image</Filter>
     </ClInclude>
     <ClInclude Include="FaceSMProcess.h" />
+    <ClInclude Include="ThreadProcess.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">

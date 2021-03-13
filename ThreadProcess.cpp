@@ -45,12 +45,12 @@ Thread* Thread::Create(Runnable* ObjectToRun,
 			delete NewThread;
 			NewThread = nullptr;
 
-			//log
 		}
 	}
 
 	return NewThread;
 }
+
 
 
 bool WindowsThread::PlatformInit(Runnable* ObjectToRun,
@@ -179,9 +179,8 @@ UINT32 WindowsThread::Run()
 
 static void* InterlockedExchangePtr(void** Dest, void* Exchange)
 {
-	return (void*)_InterlockedExchange64((long long*)Dest, (long long)Exchange);
+	return (void*)InterlockedExchange64((long long*)Dest, (long long)Exchange);
 }
-
 
 
 
@@ -191,6 +190,8 @@ ThreadProcesser::ThreadProcesser() :
 	StopTrigger(0),
 	WorkingCounter(0),
 	ReportCounter(0),
+	CurrentQuestPos(0),
+	CurrentResultPos(0),
 	Progress(0.0)
 {
 
@@ -222,14 +223,11 @@ UINT32 ThreadProcesser::Run()
 		if (WorkingCounter.GetCounter() > 0)
 		{
 			InternelDoRequest();
-		}
-		else if (ReportCounter.GetCounter() > 0)
-		{
-			Report();
+			::Sleep(10.0f);
 		}
 		else
 		{
-			::Sleep(0.05f);
+			::Sleep(10.0f);
 		}
 	}
 
@@ -246,27 +244,31 @@ void ThreadProcesser::Stop()
 
 bool ThreadProcesser::Kick(int RequestType, void* Data)
 {
-	if (Data == nullptr) return;
-
 	LockGuard<WindowsCriticalSection> Lock(CriticalSection);
 
 	if (IsWorking())
 		return false;
 
+	QuestList.clear();
+	ResultList.clear();
+
 	// Do Generate
 	if (RequestType == 1)
 	{
-
+		for (int i = 0; i < 20; i++)
+		{
+			QuestList.push_back(i);
+		}
 	}
 	// Do Bake
 	else if (RequestType == 2)
 	{
 
 	}
-	else
-	{
-		return;
-	}
+
+	CurrentQuestPos = 0;
+	CurrentResultPos = 0;
+	Progress = 0.0f;
 
 	WorkingCounter.Increment();
 
@@ -277,49 +279,60 @@ bool ThreadProcesser::Kick(int RequestType, void* Data)
 bool ThreadProcesser::IsWorking()
 {
 	LockGuard<WindowsCriticalSection> Lock(CriticalSection);
-	return WorkingCounter.GetCounter() > 0;
+	bool a = WorkingCounter.GetCounter() > 0;
+	bool b = CurrentResultPos <= ((int)ResultList.size() - 1);
+
+	return a || b;
 }
 
-float ThreadProcesser::CanGetResutl()
+float ThreadProcesser::GetResult(void* Result)
 {
 	LockGuard<WindowsCriticalSection> Lock(CriticalSection);
+
+	if (CurrentResultPos <= ((int)ResultList.size() - 1))
+	{
+		std::cout << "Result Pos -> " << CurrentResultPos << " | List Size -> "<< ResultList.size() << std::endl;
+		*((int*)Result) = ResultList[CurrentResultPos];
+		std::cout << "GetResult -> " << ResultList[CurrentResultPos] << std::endl;
+
+		CurrentResultPos += 1;
+	}
+	else
+	{
+		*((int*)Result) = -1;
+	}
+
+
 	return Progress;
 }
 
 
 void ThreadProcesser::InternelDoRequest()
 {
+	if (QuestList.size() == 0) return;
 
-		const int32 ThisThreadDataStartPos = DataStartPos.GetCounter();
-		const int32 ThisThreadDataEndPos = DataEndPos.GetCounter();
+	std::cout << "Quest Pos -> " << CurrentQuestPos << " | List Size -> " << QuestList.size() << std::endl;
+	int CurrentQuest = QuestList[CurrentQuestPos];
 
-		if (ThisThreadDataStartPos <= ThisThreadDataEndPos)
-		{
-			//Copy straight forward
-			FileSerializerPtr->Serialize(RingBuffer.Begin() + ThisThreadDataStartPos, ThisThreadDataEndPos - ThisThreadDataStartPos);
-		}
-		else
-		{
-			//Need to copy in ring
-			FileSerializerPtr->Serialize(RingBuffer.Begin() + ThisThreadDataStartPos, RingBuffer.CurrentNum() - ThisThreadDataStartPos);
-			FileSerializerPtr->Serialize(RingBuffer.Begin(), ThisThreadDataEndPos);
-		}
+	std::cout << "Handling -> " << CurrentQuest << std::endl;
+	
+	{
+		LockGuard<WindowsCriticalSection> Lock(CriticalSection);
+		ResultList.push_back(CurrentQuest);
+	}
 
-		DataStartPos.SetCounter(ThisThreadDataEndPos);
-		WriteRequestCounter.Decrement();
+	CurrentQuestPos += 1;
+	Progress += 1.0f / QuestList.size();
+	if (Progress >= 0.9998f)
+	{
+		Progress = 1.0f;
+	}
+	if (CurrentQuestPos >= (int)QuestList.size())
+	{
+		WorkingCounter.Decrement();
+	}
 
-		//If the time large than a interval, flush it
-		if ((PlatformTime::Time_Seconds() - LastFlushTime) > FlushInterval)
-			InternalFlush();
-
-		//If there has flush requests, flush it
-		if (FlushRequestCounter.GetCounter() > 0)
-		{
-			InternalFlush();
-			FlushRequestCounter.Decrement();
-		}
-
-		Progress += 0.1;
+	
 }
 
 

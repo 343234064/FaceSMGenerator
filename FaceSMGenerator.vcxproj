@@ -164,6 +164,7 @@
     <ClCompile Include="imgui\imgui_widgets.cpp" />
     <ClCompile Include="imgui_impl_dx11.cpp" />
     <ClCompile Include="imgui_impl_win32.cpp" />
+    <ClCompile Include="ThreadProcess.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FaceSMProcess.h" />
@@ -177,6 +178,7 @@
     <ClInclude Include="imgui_impl_win32.h" />
     <ClInclude Include="stb_image\stb-master\stb_image.h" />
     <ClInclude Include="stb_image\stb-master\stb_image_write.h" />
+    <ClInclude Include="ThreadProcess.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
