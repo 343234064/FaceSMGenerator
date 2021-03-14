@@ -193,6 +193,230 @@ bool CreateTextureResource(unsigned char* ImageData, int ImageWidth, int ImageHe
 }
 
 
+
+class PreviewTextureRenderer
+{
+#define PREVIEW_TEXTURE_SIZE 256
+
+struct float2
+{
+    float2(float a = 0.0f, float b = 0.0f): x(a), y(b) {}
+    float x, y;
+};
+struct float3 : public float2
+{
+    float3(float a = 0.0f, float b = 0.0f, float c = 0.0f): float2(a, b), z(c) {}
+    float z;
+};
+struct VertexType
+{
+    VertexType() {}
+    float3 position;
+    float2 uv;
+};
+
+
+public:
+    PreviewTextureRenderer():
+        RenderTargetTexture(nullptr),
+        RenderTargetView(nullptr),
+        ShaderResourceView(nullptr),
+        Initialized(false)
+    {}
+    ~PreviewTextureRenderer()
+    {
+        Uninitialize();
+    }
+
+    __forceinline EngineTextureID* GetPreviewTexture() { return ShaderResourceView; }
+
+    bool Initialize(ID3D11Device* pd3dDevice)
+    {
+        if (!SetupRenderTarget()) return false;
+        if (!SetupVertexAndIndexBuffer()) return false;
+
+        Initialized = true;
+        return true;
+    }
+
+    void Uninitialize()
+    {
+        if (ShaderResourceView != nullptr)
+        {
+            ShaderResourceView->Release();
+            ShaderResourceView = nullptr;
+        }
+
+        if (RenderTargetView != nullptr)
+        {
+            RenderTargetView->Release();
+            RenderTargetView = nullptr;
+        }
+
+        if (RenderTargetTexture != nullptr)
+        {
+            RenderTargetTexture->Release();
+            RenderTargetTexture = nullptr;
+        }
+    }
+
+    void Render(ID3D11DeviceContext* deviceContext)
+    {
+
+        ImVec4 ClearColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+        deviceContext->OMSetRenderTargets(1, &RenderTargetView, NULL);
+        deviceContext->ClearRenderTargetView(RenderTargetView, (float*)&ClearColor);
+
+
+
+        return;
+    }
+
+
+
+
+private:
+    bool SetupRenderTarget(ID3D11Device* pd3dDevice)
+    {
+        D3D11_TEXTURE2D_DESC desc;
+        ZeroMemory(&desc, sizeof(desc));
+
+        desc.Width = PREVIEW_TEXTURE_SIZE;
+        desc.Height = PREVIEW_TEXTURE_SIZE;
+        desc.MipLevels = 1;
+        desc.ArraySize = 1;
+        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        desc.SampleDesc.Count = 1;
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+        desc.CPUAccessFlags = 0;
+        desc.MiscFlags = 0;
+
+        if (FAILED(pd3dDevice->CreateTexture2D(&desc, NULL, &RenderTargetTexture)))
+        {
+            return false;
+        }
+
+        D3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc;
+        renderTargetViewDesc.Format = desc.Format;
+        renderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+        renderTargetViewDesc.Texture2D.MipSlice = 0;
+
+        if (FAILED(pd3dDevice->CreateRenderTargetView(RenderTargetTexture, &renderTargetViewDesc, &RenderTargetView)))
+        {
+            return false;
+        }
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc;
+        ZeroMemory(&shaderResourceViewDesc, sizeof(shaderResourceViewDesc));
+        shaderResourceViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        shaderResourceViewDesc.Texture2D.MipLevels = desc.MipLevels;
+        shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+        if (FAILED(pd3dDevice->CreateShaderResourceView(RenderTargetTexture, &shaderResourceViewDesc, &ShaderResourceView)))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool SetupVertexAndIndexBuffer(ID3D11Device* pd3dDevice)
+    {
+        VertexType* vertices;
+        unsigned long* indices;
+
+        // two triangle
+        int vertexCount = 6;
+        int indexCount = vertexCount;
+
+        vertices = new VertexType[vertexCount];
+        indices = new unsigned long[indexCount];
+
+        // First triangle.
+        vertices[0].position = float3(0.0f, 1.0f, 0.0f);// Top left.
+        vertices[0].uv = float2(0.0f, 0.0f);
+
+        vertices[1].position = float3(1.0, 0.0f, 0.0f);  // Bottom right.
+        vertices[1].uv = float2(1.0f, 1.0f);
+
+        vertices[2].position = float3(0.0f, 0.0f, 0.0f);  // Bottom left.
+        vertices[2].uv = float2(0.0f, 1.0f);
+
+        // Second triangle.
+        vertices[3].position = float3(0.0f, 1.0f, 0.0f);  // Top left.
+        vertices[3].uv = float2(0.0f, 0.0f);
+
+        vertices[4].position = float3(1.0f, 1.0f, 0.0f);  // Top right.
+        vertices[4].uv = float2(1.0f, 0.0f);
+
+        vertices[5].position = float3(1.0f, 0.0f, 0.0f);  // Bottom right.
+        vertices[5].uv = float2(1.0f, 1.0f);
+
+
+        for (int i = 0; i < indexCount; i++)
+        {
+            indices[i] = i;
+        }
+
+        D3D11_BUFFER_DESC vertexBufferDesc;
+        vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+        vertexBufferDesc.ByteWidth = sizeof(VertexType) * vertexCount;
+        vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        vertexBufferDesc.MiscFlags = 0;
+        vertexBufferDesc.StructureByteStride = 0;
+
+        D3D11_SUBRESOURCE_DATA vertexData;
+        vertexData.pSysMem = vertices;
+        vertexData.SysMemPitch = 0;
+        vertexData.SysMemSlicePitch = 0;
+
+        if (FAILED(pd3dDevice->CreateBuffer(&vertexBufferDesc, &vertexData, &VertexBuffer)))
+        {
+            return false;
+        }
+
+        D3D11_BUFFER_DESC indexBufferDesc;
+        indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        indexBufferDesc.ByteWidth = sizeof(unsigned long) * indexCount;
+        indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+        indexBufferDesc.CPUAccessFlags = 0;
+        indexBufferDesc.MiscFlags = 0;
+        indexBufferDesc.StructureByteStride = 0;
+
+        D3D11_SUBRESOURCE_DATA indexData;
+        indexData.pSysMem = indices;
+        indexData.SysMemPitch = 0;
+        indexData.SysMemSlicePitch = 0;
+
+        if (FAILED(pd3dDevice->CreateBuffer(&indexBufferDesc, &indexData, &IndexBuffer)))
+        {
+            return false;
+        }
+
+        delete[] vertices;
+        delete[] indices;
+
+        return true;
+    }
+
+
+private:
+    ID3D11Texture2D* RenderTargetTexture;
+    ID3D11RenderTargetView* RenderTargetView;
+    ID3D11ShaderResourceView* ShaderResourceView;
+    
+    ID3D11Buffer* VertexBuffer;
+    ID3D11Buffer* IndexBuffer;
+
+    bool Initialized;
+
+
+};
+
+
+
 class UIManager
 {
 #define DIGIT_INPUTTEXT_SIZE 8
@@ -434,6 +658,9 @@ public:
 
         return Progress;
     }
+
+
+
 
 private:
     void LoadTextureData(ItemIter it)
@@ -684,7 +911,7 @@ int main(int, char**)
 
             ImGui::Text("");
             ImGui::BulletText("1st Step:Add shadow map to the texture box below in the order in which the face shadow changes");
-            if (ImGui::TreeNodeEx("Texture box  **DO NOT has Chinese characters in the file path**", ImGuiTreeNodeFlags_DefaultOpen))
+            if (ImGui::TreeNodeEx("Texture box  **DO NOT has Chinese characters in file path**", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::Text(gUIManager.TextureboxStateText);
                 if (ImGui::Button("Add"))
@@ -816,7 +1043,7 @@ int main(int, char**)
             ImGui::Text("  ");
             ImGui::Text("  ");
             ImGui::SameLine(0.0, 125.0);
-            ImGui::Image((void*)gUIManager.PreviewTexture, ImVec2(256, 256));
+            ImGui::Image((void*)gUIManager.PreviewTexture, ImVec2(PREVIEW_TEXTURE_SIZE, PREVIEW_TEXTURE_SIZE));
 
             ImGui::Text("  ");
             ImGui::Text("");
