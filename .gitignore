@@ -13,3 +13,4 @@ x64
 .vs/FaceSMGenerator/v16/ipch/AutoPCH/e700bea65908ac34/IMGUI_DEMO.ipch
 .vs/FaceSMGenerator/v16/ipch/AutoPCH/f7a16b3a97f3ebea/THREADPROCESS.ipch
 .vs/FaceSMGenerator/v16/ipch/AutoPCH/feec13a43338dca/THREADPROCESS.ipch
+*.ipch
