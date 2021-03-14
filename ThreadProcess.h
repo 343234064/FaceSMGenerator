@@ -308,6 +308,13 @@ protected:
 };
 
 
+enum class RequestType
+{
+	None = -1,
+	Generate = 0,
+	Bake = 1
+};
+
 
 class ThreadProcesser :public Runnable
 {
@@ -321,9 +328,9 @@ public:
 	void Stop() override;
 
 	/****Call in Client****/
-	bool Kick(int RequestType, void* Data);
+	bool Kick(RequestType Type, std::vector<TextureData>& Quests);
 	bool IsWorking();
-	float GetResult(void* Result);
+	float GetResult(TextureData* Result);
 
 private:
 	void InternelDoRequest();
@@ -337,11 +344,15 @@ private:
 	AtomicCounter WorkingCounter;
 	AtomicCounter ReportCounter;
 
-	std::vector<int> QuestList;
-	std::vector<int> ResultList;
+	std::vector<TextureData> QuestList;
+	std::vector<TextureData> ResultList;
 
 	int CurrentQuestPos;
 	int CurrentResultPos;
 
 	float Progress;
+
+	RequestType Request;
+
+	SDFGenerator Generator;
 };

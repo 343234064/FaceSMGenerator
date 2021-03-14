@@ -4,11 +4,12 @@
 #include "imgui/imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
-#include "FaceSMProcess.h"
+
 #include "ThreadProcess.h"
 
 #include <ShObjIdl_core.h>
 #include <stdio.h>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -208,7 +209,11 @@ public:
     char GenerateHintText[HINT_TEXT_SIZE] = "";
     char ProgressHintText[HINT_TEXT_SIZE] = "";
     
-    EngineTextureID* PreviewTexture = NULL;
+    EngineTextureID* PreviewTexture = nullptr;
+    
+    const float PreviewSliderMin = 0.0f;
+    const float PreviewSliderMax = 1.0f;
+    float PreviewSliderValue = 0.5f;
 
 private:
     ThreadProcesser* AsyncProcesser = nullptr;
@@ -232,6 +237,16 @@ public:
 
     void OnAddButtonClicked()
     {
+        snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
+        if (AsyncProcesser != nullptr)
+        {
+            if (AsyncProcesser->IsWorking())
+            {
+                snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
+                return;
+            }
+        }
+
         std::vector<std::string> FilesPaths = BrowseFile();
         int FilesNum = (int)FilesPaths.size();
        
@@ -253,6 +268,16 @@ public:
 
     void OnDeleteButtonClicked()
     {
+        snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
+        if (AsyncProcesser != nullptr)
+        {
+            if (AsyncProcesser->IsWorking())
+            {
+                snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
+                return;
+            }
+        }
+
         ItemIter it;
         for (it = TextureboxList.begin(); it != TextureboxList.end(); )
         {
@@ -272,13 +297,30 @@ public:
 
     void OnDeleteAllButtonClicked()
     {
+        snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
+        if (AsyncProcesser != nullptr)
+        {
+            if (AsyncProcesser->IsWorking())
+            {
+                snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
+                return;
+            }
+        }
+
         ItemIter it;
         for (it = TextureboxList.begin(); it != TextureboxList.end(); it++)
         {
             UnLoadTextureData(it);
         }
         TextureboxList.clear();
+        PreviewTexture = nullptr;
+
         snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Added", (int)TextureboxList.size());
+    }
+
+    void OnReloadSelectedClicked()
+    {
+
     }
 
     void OnGenerateButtonClicked()
@@ -328,8 +370,15 @@ public:
                 AsyncProcesser = new ThreadProcesser();
             }
 
+            std::vector<TextureData> Textures;
+            for (size_t i = 0; i < TextureboxList.size(); i++)
+            {
+                TextureData NewData = TextureData(i, TextureboxList[i].Height, TextureboxList[i].Width, TextureboxList[i].Data);
+                Textures.push_back(NewData);
+            }
+
             bool Success = false;
-            Success = AsyncProcesser->Kick(1, nullptr);
+            Success = AsyncProcesser->Kick(RequestType::Generate, Textures);
             if (!Success) {
                 snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
             }
@@ -337,36 +386,8 @@ public:
             {
                 snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
             }
-            /*
-            SDFGenerator Generator;
-            for (auto Item : TextureboxList)
-            {
-                unsigned char* output = (unsigned char*)malloc(4 * Item.Width * Item.Height * sizeof(unsigned char));
-                Generator.Run(Item.Width, Item.Height, Item.Data, &output);
 
-                if (Item.SDFData != NULL)
-                {
-                    free(Item.SDFData);
-                    Item.SDFData = NULL;
-                }
-                if (Item.SDFTextureID != NULL)
-                {
-                    Item.SDFTextureID->Release();
-                    Item.SDFTextureID = NULL;
-                }
 
-                Item.SDFData = output;
-
-                EngineTextureID* Texture = NULL;
-                if (!CreateTextureResource(Item.SDFData, Item.Width, Item.Height, 4, &(Texture))) {
-                    stbi_image_free(Item.SDFData);
-                    Item.SDFData = NULL;
-                }
-                Item.SDFTextureID = Texture;
-                PreviewTexture = Texture;
-                
-            }
-            */
         }
     }
 
@@ -380,8 +401,37 @@ public:
         if (AsyncProcesser == nullptr)
             return 0.0f;
 
-        int Result = -1;
+        TextureData Result;
         float Progress = AsyncProcesser->GetResult(&Result);
+        if (Result.Index != -1)
+        {
+            if (Result.Index > TextureboxList.size() - 1)
+            {
+                std::cerr << "GetResult Index get error [Index:" << Result.Index << ",Actual Size:" << TextureboxList.size() << "]" << std::endl;
+                return 0.0f;
+            }
+            TextureboxItem& Item = TextureboxList[Result.Index];
+            if (Item.SDFData != nullptr)
+            {
+                free(Item.SDFData);
+                Item.SDFData = nullptr;
+            }
+            if (Item.SDFTextureID != nullptr)
+            {
+                Item.SDFTextureID->Release();
+                Item.SDFTextureID = nullptr;
+            }
+            TextureboxList[Result.Index].SDFData = Result.SDFData;
+
+            EngineTextureID* Texture = nullptr;
+            if (!CreateTextureResource(Item.SDFData, Item.Width, Item.Height, 4, &(Texture))) {
+                stbi_image_free(Item.SDFData);
+                Item.SDFData = nullptr;
+            }
+            Item.SDFTextureID = Texture;
+            PreviewTexture = Texture;
+        }
+
         return Progress;
     }
 
@@ -421,8 +471,13 @@ private:
         unsigned char* SDFData = it->SDFData;
         EngineTextureID* SDFTexture = it->SDFTextureID;
 
-        if (SDFTexture != NULL)
+        if (SDFTexture != NULL) {
+            if (SDFTexture == PreviewTexture)
+            {
+                PreviewTexture = nullptr;
+            }
             SDFTexture->Release();
+        }
         if (SDFData != NULL)
             free(SDFData);
         if (Texture != NULL)
@@ -646,6 +701,11 @@ int main(int, char**)
                 {
                     gUIManager.OnDeleteAllButtonClicked();
                 }
+                ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+                if (ImGui::Button("Reload Selected"))
+                {
+                    gUIManager.OnReloadSelectedClicked();
+                }
                 {
                     ImGuiWindowFlags window_flags = ImGuiWindowFlags_HorizontalScrollbar;
                     ImGui::BeginChild("Texture box", ImVec2(ImGui::GetWindowContentRegionWidth() * 0.9f, window_height * 0.3f), false, window_flags);
@@ -754,8 +814,17 @@ int main(int, char**)
             ImGui::Text("");
             ImGui::Separator();
             ImGui::Text("  ");
-            ImGui::SameLine(0.0, 0.0);
+            ImGui::Text("  ");
+            ImGui::SameLine(0.0, 125.0);
             ImGui::Image((void*)gUIManager.PreviewTexture, ImVec2(256, 256));
+
+            ImGui::Text("  ");
+            ImGui::Text("");
+            ImGui::SameLine(0.0, 100.0);
+            ImGui::Text("Preview slider");
+            ImGui::Text("");
+            ImGui::SameLine(0.0, 100.0);
+            ImGui::SliderScalar("", ImGuiDataType_Float, &gUIManager.PreviewSliderValue, &gUIManager.PreviewSliderMin, &gUIManager.PreviewSliderMax);
 
             ImGui::End();
         }

@@ -192,7 +192,8 @@ ThreadProcesser::ThreadProcesser() :
 	ReportCounter(0),
 	CurrentQuestPos(0),
 	CurrentResultPos(0),
-	Progress(0.0)
+	Progress(0.0),
+	Request(RequestType::None)
 {
 
 	InterlockedExchangePtr((void**)&WriterThreadPtr, WindowsThread::Create(this, 0, ThreadPriority::BelowNormal));
@@ -223,11 +224,11 @@ UINT32 ThreadProcesser::Run()
 		if (WorkingCounter.GetCounter() > 0)
 		{
 			InternelDoRequest();
-			::Sleep(10.0f);
+			::Sleep(5);
 		}
 		else
 		{
-			::Sleep(10.0f);
+			::Sleep(10);
 		}
 	}
 
@@ -242,30 +243,24 @@ void ThreadProcesser::Stop()
 
 
 
-bool ThreadProcesser::Kick(int RequestType, void* Data)
-{
-	LockGuard<WindowsCriticalSection> Lock(CriticalSection);
 
+bool ThreadProcesser::Kick(RequestType Type, std::vector<TextureData>& Quests)
+{
 	if (IsWorking())
 		return false;
+
+	LockGuard<WindowsCriticalSection> Lock(CriticalSection);
 
 	QuestList.clear();
 	ResultList.clear();
 
-	// Do Generate
-	if (RequestType == 1)
+	for (size_t i = 0; i < Quests.size(); i++)
 	{
-		for (int i = 0; i < 20; i++)
-		{
-			QuestList.push_back(i);
-		}
-	}
-	// Do Bake
-	else if (RequestType == 2)
-	{
-
+		QuestList.push_back(Quests[i]);
 	}
 
+	Request = Type;
+	
 	CurrentQuestPos = 0;
 	CurrentResultPos = 0;
 	Progress = 0.0f;
@@ -285,21 +280,23 @@ bool ThreadProcesser::IsWorking()
 	return a || b;
 }
 
-float ThreadProcesser::GetResult(void* Result)
+float ThreadProcesser::GetResult(TextureData* Result)
 {
+	if (Result == nullptr) return 0.0f;
+
 	LockGuard<WindowsCriticalSection> Lock(CriticalSection);
 
 	if (CurrentResultPos <= ((int)ResultList.size() - 1))
 	{
-		std::cout << "Result Pos -> " << CurrentResultPos << " | List Size -> "<< ResultList.size() << std::endl;
-		*((int*)Result) = ResultList[CurrentResultPos];
-		std::cout << "GetResult -> " << ResultList[CurrentResultPos] << std::endl;
+		*Result = ResultList[CurrentResultPos];
+
+		std::cout << "GetResult -> " << ResultList[CurrentResultPos].Index << "|" << ResultList[CurrentResultPos].Width << "x" << ResultList[CurrentResultPos].Height << std::endl;
 
 		CurrentResultPos += 1;
 	}
 	else
 	{
-		*((int*)Result) = -1;
+		Result ->Index = -1;
 	}
 
 
@@ -311,10 +308,28 @@ void ThreadProcesser::InternelDoRequest()
 {
 	if (QuestList.size() == 0) return;
 
-	std::cout << "Quest Pos -> " << CurrentQuestPos << " | List Size -> " << QuestList.size() << std::endl;
-	int CurrentQuest = QuestList[CurrentQuestPos];
+	TextureData& CurrentQuest = QuestList[CurrentQuestPos];
 
-	std::cout << "Handling -> " << CurrentQuest << std::endl;
+	std::cout << "Handling -> " << CurrentQuest.Index << " |" << CurrentQuest.Width<<"x"<< CurrentQuest.Height<< std::endl;
+
+	// Do Generate
+	if (Request == RequestType::Generate)
+	{
+		std::cout << "Generate..." << std::endl;
+		unsigned char* output = (unsigned char*)malloc(4 * CurrentQuest.Width * CurrentQuest.Height * sizeof(unsigned char));
+		Generator.Run(CurrentQuest.Width, CurrentQuest.Height, CurrentQuest.Data, &output);
+		CurrentQuest.SDFData = output;
+	}
+	// Do Bake
+	else if (Request == RequestType::Bake)
+	{
+
+	}
+	else
+	{
+		std::cout << "RequestType error:  " << (int)Request << std::endl;
+	}
+
 	
 	{
 		LockGuard<WindowsCriticalSection> Lock(CriticalSection);
@@ -330,6 +345,7 @@ void ThreadProcesser::InternelDoRequest()
 	if (CurrentQuestPos >= (int)QuestList.size())
 	{
 		WorkingCounter.Decrement();
+		std::cout << "All Done" << std::endl;
 	}
 
 	

@@ -154,6 +154,10 @@ void SDFGenerator::Load(int width, int height, unsigned char* image) {
     gridWidth = imageWidth + 2;
     gridHeight = imageHeight + 2;
     numPoint = gridWidth * gridHeight; // include padding
+
+    if (grid1.points) free(grid1.points);
+    if (grid2.points) free(grid2.points);
+
     grid1.points = (Point*)malloc(numPoint * sizeof(Point));
     grid2.points = (Point*)malloc(numPoint * sizeof(Point));
 
@@ -215,11 +219,11 @@ void SDFGenerator::Run(int width, int height, unsigned char* image, unsigned cha
             float c = 0.5;
             if (dist < 0)
             {
-                c += dist / outsideMax * 0.5;
+                c += dist / outsideMax * 0.5f;
             }
             else
             {
-                c += dist / insideMax * 0.5;
+                c += dist / insideMax * 0.5f;
             }
 
             int output_color = int(c * 255);
@@ -229,8 +233,8 @@ void SDFGenerator::Run(int width, int height, unsigned char* image, unsigned cha
             (Pack)[y * imageWidth + x].a = output_color;
         }
     }
-    
-    stbi_write_jpg("Test5.jpg", imageWidth, imageHeight, 4, *output, 100);
+
+    //stbi_write_jpg("Test5.jpg", imageWidth, imageHeight, 4, *output, 100);
 
     if (testGrid1.points) free(testGrid1.points);
     if (testGrid2.points) free(testGrid2.points);

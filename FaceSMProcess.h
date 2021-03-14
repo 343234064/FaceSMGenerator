@@ -2,6 +2,37 @@
 
 #include <immintrin.h>
 
+
+
+struct TextureData
+{
+public:
+    TextureData(int index = -1, int height = 0, int width = 0, unsigned char* data = nullptr):
+        Index(index),
+        Height(height),
+        Width(width),
+        Data(data),
+        SDFData(nullptr)
+    {}
+
+    int Index;
+    int Height;
+    int Width;
+    unsigned char* Data;
+    unsigned char* SDFData;
+
+    TextureData& operator=(TextureData& Other)
+    {
+        if (&Other == this) return *this;
+
+        Index = Other.Index;
+        Height = Other.Height;
+        Width = Other.Width;
+        Data = Other.Data;
+        SDFData = Other.SDFData;
+    }
+};
+
 ////////////////////////////////////////////////
 //8ssedt optimized
 //https://www.jianshu.com/p/58271568781d
@@ -18,6 +49,8 @@ public:
     };
 
 public:
+    SDFGenerator() {}
+
     ~SDFGenerator() {
         if (grid1.points) free(grid1.points);
         if (grid2.points) free(grid2.points);
