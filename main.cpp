@@ -21,7 +21,6 @@ static IDXGISwapChain* g_pSwapChain = NULL;
 static ID3D11RenderTargetView* g_mainRenderTargetView = NULL;
 
 static Editor gEditor = Editor();
-static PreviewTextureRenderer gPreviewRenderer = PreviewTextureRenderer();
 
 void CreateRenderTarget()
 {
@@ -154,7 +153,7 @@ int main(int, char**)
     ImVec4 clear_color = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
 
     gEditor.SetEngineDevice(g_pd3dDevice);
-    gPreviewRenderer.Initialize(g_pd3dDevice);
+    gEditor.PreviewRenderer.Initialize(g_pd3dDevice);
 
     // Main loop
     MSG msg;
@@ -183,8 +182,8 @@ int main(int, char**)
             ImGui::ShowDemoWindow(&show_demo_window);
         }
         
-        gPreviewRenderer.Render(g_pd3dDeviceContext);
-        RenderEditorUI(gEditor, gPreviewRenderer);
+        gEditor.PreviewRenderer.Render(g_pd3dDeviceContext);
+        RenderEditorUI(gEditor);
        
         // Rendering
         ImGui::Render();
@@ -196,7 +195,7 @@ int main(int, char**)
         //g_pSwapChain->Present(0, 0); // Present without vsync
     }
 
-    gPreviewRenderer.Uninitialize();
+    gEditor.PreviewRenderer.Uninitialize();
 
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();

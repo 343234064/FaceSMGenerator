@@ -83,18 +83,18 @@ public:
         VSConstantBuffer(nullptr),
         VertexShader(nullptr),
         VertexShaderBlob(nullptr),
+        PSConstantBuffer(nullptr),
         PixelShader(nullptr),
         PixelShaderBlob(nullptr),
+        TextureSampler(nullptr),
         RasterizerState(nullptr),
         BlendState(nullptr),
         DepthStencilState(nullptr),
-        Initialized(false)
+        Initialized(false),
+        Threshold(0.5f)
     {
-        TextureSampler[0] = nullptr;
-        TextureSampler[1] = nullptr;
-        TextureView[0] = nullptr;
-        TextureView[1] = nullptr;
-
+        TextureViewsToRender[0] = nullptr;
+        TextureViewsToRender[1] = nullptr;
     }
     ~PreviewTextureRenderer()
     {
@@ -105,6 +105,8 @@ public:
 
     bool Initialize(ID3D11Device* pd3dDevice)
     {
+        if (Initialized) return true;
+
         if (!SetupRenderTarget(pd3dDevice)) {
             std::cerr << "Preview Renderer: Render target init failed" << std::endl;
             return false;
@@ -124,6 +126,11 @@ public:
         
         std::cout << "Preview renderer init finished" << std::endl;
 
+        TextureViewsToRender[0] = nullptr;
+        TextureViewsToRender[1] = nullptr;
+        TextureViews.clear();
+        Threshold = 0.5f;
+
         Initialized = true;
         return true;
     }
@@ -135,10 +142,9 @@ public:
         if (VertexShader != nullptr) { VertexShader->Release(); VertexShader = nullptr; }
         if (VertexShaderBlob != nullptr) { VertexShaderBlob->Release(); VertexShaderBlob = nullptr; }
 
-        if (TextureSampler[0] != nullptr) { TextureSampler[0]->Release(); TextureSampler[0] = nullptr; }
-        if (TextureSampler[1] != nullptr) { TextureSampler[1]->Release(); TextureSampler[1] = nullptr; }
-        if (TextureView[0] != nullptr) { TextureView[0]->Release(); TextureView[0] = nullptr; }
-        if (TextureView[1] != nullptr) { TextureView[1]->Release(); TextureView[1] = nullptr; }
+        if (TextureSampler != nullptr) { TextureSampler->Release(); TextureSampler = nullptr; }
+
+        if (PSConstantBuffer != nullptr) { PSConstantBuffer->Release(); PSConstantBuffer = nullptr; }
         if (PixelShader != nullptr) { PixelShader->Release(); PixelShader = nullptr; }
         if (PixelShaderBlob != nullptr) { PixelShaderBlob->Release(); PixelShaderBlob = nullptr; }
 
@@ -153,11 +159,24 @@ public:
         if (RenderTargetView != nullptr) { RenderTargetView->Release(); RenderTargetView = nullptr; }
         if (RenderTargetTexture != nullptr) { RenderTargetTexture->Release(); RenderTargetTexture = nullptr; }
 
+        TextureViewsToRender[0] = nullptr;
+        TextureViewsToRender[1] = nullptr;
+        TextureViews.clear();
+
+        Threshold = 0.5f;
+
+        Initialized = false;
     }
 
     void Render(ID3D11DeviceContext* deviceContext);
-    
 
+    void SetTexture(ID3D11ShaderResourceView* TextureID) {
+        if (TextureID)
+            TextureViews.push_back(TextureID);
+    }
+    void ClearTexture() { TextureViews.clear(); }
+    void SetThreshold(float Value) { Threshold = Value; }
+    bool IsInit() { return Initialized; }
 
 private:
     bool SetupRenderTarget(ID3D11Device* pd3dDevice);
@@ -180,11 +199,10 @@ private:
     ID3D11VertexShader* VertexShader;
     ID3D10Blob* VertexShaderBlob;
 
-    ID3D11SamplerState* TextureSampler[2];
-    ID3D11ShaderResourceView* TextureView[2];
+    ID3D11SamplerState* TextureSampler;
+    ID3D11Buffer* PSConstantBuffer;
     ID3D11PixelShader* PixelShader;
     ID3D10Blob* PixelShaderBlob;
-
 
     //States
     D3D11_VIEWPORT Viewport;
@@ -192,9 +210,13 @@ private:
     ID3D11BlendState* BlendState;
     ID3D11DepthStencilState* DepthStencilState;
 
+    //External
+    std::vector<ID3D11ShaderResourceView*> TextureViews;
+    ID3D11ShaderResourceView* TextureViewsToRender[2];
+
     bool Initialized;
 
-
+    float Threshold;
 };
 
 
@@ -216,13 +238,12 @@ public:
     char GenerateHintText[HINT_TEXT_SIZE] = "";
     char ProgressHintText[HINT_TEXT_SIZE] = "";
 
-    EngineTextureID* PreviewTexture = nullptr;
-
     const float PreviewSliderMin = 0.0f;
     const float PreviewSliderMax = 1.0f;
     float PreviewSliderValue = 0.5f;
 
     PreviewTextureRenderer PreviewRenderer;
+    bool PreviewDirty = false;
 
 private:
     ThreadProcesser* AsyncProcesser = nullptr;
@@ -234,7 +255,6 @@ public:
 private:
     /*External*/
     EngineDevice* Device = nullptr;
-    bool CreateEngineTextureResource(unsigned char* ImageData, int ImageWidth, int ImageHeight, int channel, EngineTextureID** OutResource);
 
 
 public:
@@ -272,6 +292,6 @@ private:
 
 
 
-void RenderEditorUI(Editor& editor, PreviewTextureRenderer& previewRenderer);
+void RenderEditorUI(Editor& editor);
 
 

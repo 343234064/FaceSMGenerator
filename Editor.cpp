@@ -96,7 +96,7 @@ std::vector<std::string> BrowseFile()
 
 
 
-void RenderEditorUI(Editor& UIEditor, PreviewTextureRenderer& PreviewRenderer)
+void RenderEditorUI(Editor& UIEditor)
 {
     float window_height = 750;
     float window_width = 700;
@@ -218,6 +218,7 @@ void RenderEditorUI(Editor& UIEditor, PreviewTextureRenderer& PreviewRenderer)
         float Progress = UIEditor.GetProgress();
         ImGui::ProgressBar(Progress, ImVec2(-1.0f, 0.0f));
 
+
         ImGui::End();
     }
 
@@ -253,22 +254,28 @@ void RenderEditorUI(Editor& UIEditor, PreviewTextureRenderer& PreviewRenderer)
         ImGui::Text("  ");
         ImGui::Text("  ");
         ImGui::SameLine(0.0, 125.0);
-        ImGui::Image((void*)PreviewRenderer.GetPreviewTexture(), ImVec2(PREVIEW_TEXTURE_SIZE, PREVIEW_TEXTURE_SIZE));
+        ImGui::Image((void*)UIEditor.PreviewRenderer.GetPreviewTexture(), ImVec2(PREVIEW_TEXTURE_SIZE, PREVIEW_TEXTURE_SIZE));
 
         ImGui::Text("  ");
         ImGui::Text("");
         ImGui::SameLine(0.0, 100.0);
         ImGui::Text("Preview slider");
+        ImGui::SameLine(0.0, 0.0);
+        if (!UIEditor.PreviewRenderer.IsInit())
+            ImGui::TextColored(ImVec4(1, 0, 0, 1), "    Preview Render Init Failed..");
+        else
+            ImGui::Text("");
         ImGui::Text("");
         ImGui::SameLine(0.0, 100.0);
         ImGui::SliderScalar("", ImGuiDataType_Float, &UIEditor.PreviewSliderValue, &UIEditor.PreviewSliderMin, &UIEditor.PreviewSliderMax);
+        UIEditor.PreviewRenderer.SetThreshold(UIEditor.PreviewSliderValue);
 
         ImGui::End();
     }
 }
 
 
-bool Editor::CreateEngineTextureResource(unsigned char* ImageData, int ImageWidth, int ImageHeight, int channel, EngineTextureID** OutResource)
+bool CreateEngineTextureResource(EngineDevice* Device, unsigned char* ImageData, int ImageWidth, int ImageHeight, int channel, EngineTextureID** OutResource)
 {
     D3D11_TEXTURE2D_DESC desc;
     ZeroMemory(&desc, sizeof(desc));
@@ -368,6 +375,7 @@ void Editor::OnDeleteButtonClicked()
             it++;
         }
     }
+    PreviewRenderer.ClearTexture();
 
     snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Added", (int)TextureboxList.size());
 }
@@ -391,7 +399,7 @@ void Editor::OnDeleteAllButtonClicked()
         UnLoadTextureData(it);
     }
     TextureboxList.clear();
-    PreviewTexture = nullptr;
+    PreviewRenderer.ClearTexture();
 
     snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Added", (int)TextureboxList.size());
 }
@@ -465,8 +473,9 @@ void Editor::OnGenerateButtonClicked()
         else
         {
             snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
+            PreviewRenderer.ClearTexture();
+            PreviewDirty = true;
         }
-
 
     }
 }
@@ -508,14 +517,28 @@ float Editor::GetProgress()
         TextureboxList[Result.Index].SDFData = Result.SDFData;
 
         EngineTextureID* Texture = nullptr;
-        if (!CreateEngineTextureResource(Item.SDFData, Item.Width, Item.Height, 4, &(Texture))) {
+        if (!CreateEngineTextureResource(Device, Item.SDFData, Item.Width, Item.Height, 4, &(Texture))) {
             stbi_image_free(Item.SDFData);
             Item.SDFData = nullptr;
         }
         Item.SDFTextureID = Texture;
-        PreviewTexture = Texture;
     }
 
+
+    if (Progress >= 1.0f && PreviewDirty)
+    {
+        PreviewRenderer.ClearTexture();
+        for (size_t i = 0; i < TextureboxList.size(); i++) {
+            if (TextureboxList[i].SDFTextureID == nullptr)
+            {
+                PreviewRenderer.ClearTexture();
+                break;
+            }
+            PreviewRenderer.SetTexture(TextureboxList[i].SDFTextureID);
+        }
+
+        PreviewDirty = false;
+    }
     return Progress;
 }
 
@@ -536,7 +559,7 @@ void Editor::LoadTextureData(ItemIter it)
         return;
 
     EngineTextureID* Texture = NULL;
-    if (!CreateEngineTextureResource(Image_data, Width, Height, 4, &(Texture))) {
+    if (!CreateEngineTextureResource(Device, Image_data, Width, Height, 4, &(Texture))) {
         UnLoadTextureData(it);
         return;
     }
@@ -558,10 +581,6 @@ void Editor::UnLoadTextureData(ItemIter it)
     EngineTextureID* SDFTexture = it->SDFTextureID;
 
     if (SDFTexture != NULL) {
-        if (SDFTexture == PreviewTexture)
-        {
-            PreviewTexture = nullptr;
-        }
         SDFTexture->Release();
     }
     if (SDFData != NULL)
@@ -787,21 +806,39 @@ static const char* VertexShaderCode =
 
 
 static const char* PixelShaderCode =
-            "struct PS_INPUT\
+            "cbuffer pixelBuffer : register(b0) \
+            {\
+                float Threshold;\
+                float Soft;\
+            };\
+            struct PS_INPUT\
             {\
             float4 pos : SV_POSITION;\
             float2 uv  : TEXCOORD0;\
             };\
+            sampler sampler0 : register(s0);\
+            sampler sampler1 : register(s1);\
+            Texture2D texture0 : register(t0);\
+            Texture2D texture1 : register(t1);\
             \
             float4 main(PS_INPUT input) : SV_Target\
             {\
-            float4 out_col = float4(0.0f, 0.5f, 0.5f, 1.0f); \
-            return out_col; \
+            float3 color0 = texture0.Sample(sampler0, input.uv).rgb;\
+            float3 color1 = texture1.Sample(sampler1, input.uv).rgb;\
+            float3 final_color = lerp(color0, color1, Threshold);\
+            float soft = 0.0005f; \
+            final_color = smoothstep(0.5f-soft, 0.5f+soft, final_color); \
+            return float4(final_color, 1.0f); \
             }";
 
 struct VERTEX_CONSTANT_BUFFER
 {
     float   mvp[4][4];
+};
+struct PIXEL_CONSTANT_BUFFER
+{
+    float   threshold;
+    float   soft;
 };
 
 bool PreviewTextureRenderer::SetupShaderResources(ID3D11Device* pd3dDevice)
@@ -844,6 +881,28 @@ bool PreviewTextureRenderer::SetupShaderResources(ID3D11Device* pd3dDevice)
     if (FAILED(pd3dDevice->CreatePixelShader((DWORD*)PixelShaderBlob->GetBufferPointer(), PixelShaderBlob->GetBufferSize(), NULL, &PixelShader)))
         return false;
 
+    D3D11_SAMPLER_DESC SDesc;
+    ZeroMemory(&SDesc, sizeof(SDesc));
+    SDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    SDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    SDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    SDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    SDesc.MipLODBias = 0.f;
+    SDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+    SDesc.MinLOD = 0.f;
+    SDesc.MaxLOD = 0.f;
+    if (FAILED(pd3dDevice->CreateSamplerState(&SDesc, &TextureSampler)))
+        return false;
+
+    D3D11_BUFFER_DESC PCDesc;
+    PCDesc.ByteWidth = sizeof(VERTEX_CONSTANT_BUFFER);
+    PCDesc.Usage = D3D11_USAGE_DYNAMIC;
+    PCDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    PCDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    PCDesc.MiscFlags = 0;
+
+    if (FAILED(pd3dDevice->CreateBuffer(&PCDesc, NULL, &PSConstantBuffer)))
+        return false;
 
     return true;
 }
@@ -851,6 +910,8 @@ bool PreviewTextureRenderer::SetupShaderResources(ID3D11Device* pd3dDevice)
 
 void PreviewTextureRenderer::Render(ID3D11DeviceContext* deviceContext)
 {
+    if (!Initialized) return;
+
     const float ClearColor[4] = { 0.5f, 0.0f, 0.0f, 1.0f };
     const float BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
     unsigned int Stride = sizeof(VertexType);
@@ -876,6 +937,18 @@ void PreviewTextureRenderer::Render(ID3D11DeviceContext* deviceContext)
         deviceContext->Unmap(VSConstantBuffer, 0);
     }
 
+    {
+        D3D11_MAPPED_SUBRESOURCE mapped_resource;
+        if (deviceContext->Map(PSConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource) != S_OK)
+            return;
+        PIXEL_CONSTANT_BUFFER* constant_buffer = (PIXEL_CONSTANT_BUFFER*)mapped_resource.pData;
+        float Test = 0.8f;
+        float Soft = 0.0005f;
+        memcpy(&constant_buffer->threshold, &Threshold, sizeof(Threshold));
+        memcpy(&constant_buffer->soft, &Soft, sizeof(Soft));
+        deviceContext->Unmap(PSConstantBuffer, 0);
+    }
+
     deviceContext->IASetInputLayout(VSInputLayout);
     deviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
     deviceContext->IASetIndexBuffer(IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
@@ -891,15 +964,29 @@ void PreviewTextureRenderer::Render(ID3D11DeviceContext* deviceContext)
     deviceContext->RSSetScissorRects(1, &r);
 
     deviceContext->PSSetShader(PixelShader, NULL, 0);
-    //deviceContext->PSSetSamplers(0, 2, TextureSampler);
+    deviceContext->PSSetSamplers(0, 1, &TextureSampler);
+    deviceContext->PSSetConstantBuffers(0, 1, &PSConstantBuffer);
 
+
+    if (TextureViews.size() >= 2) {
+        TextureViewsToRender[0] = TextureViews[0];
+        TextureViewsToRender[1] = TextureViews[1];
+        deviceContext->PSSetShaderResources(0, 2, TextureViewsToRender);
+    }
+    else
+    {
+        deviceContext->PSSetShaderResources(0, 0, NULL);
+    }
+
+   
     deviceContext->OMSetRenderTargets(1, &RenderTargetView, NULL);
     deviceContext->OMSetBlendState(BlendState, BlendFactor, 0xffffffff);
     deviceContext->OMSetDepthStencilState(DepthStencilState, 0);
     deviceContext->ClearRenderTargetView(RenderTargetView, ClearColor);
 
-    //deviceContext->DrawAuto();
     deviceContext->DrawIndexed(6, 0, 0);
 
     return;
 }
+
+
