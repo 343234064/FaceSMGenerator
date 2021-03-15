@@ -2,9 +2,6 @@
 #include <iostream>
 #include <chrono>
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image/stb-master/stb_image_write.h"
-#include "stb_image/stb-master/stb_image.h"
 
 #include "FaceSMProcess.h"
 

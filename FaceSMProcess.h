@@ -30,6 +30,8 @@ public:
         Width = Other.Width;
         Data = Other.Data;
         SDFData = Other.SDFData;
+
+        return *this;
     }
 };
 
@@ -49,7 +51,16 @@ public:
     };
 
 public:
-    SDFGenerator() {}
+    SDFGenerator():
+        imageWidth(0),
+        imageHeight(0),
+        gridWidth(0),
+        gridHeight(0),
+        numPoint(0)
+    {
+        inside = { 0, 0 };
+        empty = { 16384, 16384 };
+    }
 
     ~SDFGenerator() {
         if (grid1.points) free(grid1.points);
@@ -82,8 +93,8 @@ private:
     int imageWidth, imageHeight;
     int gridWidth, gridHeight, numPoint;
     Grid grid1, grid2;
-    Point inside = { 0, 0 };
-    Point empty = { 16384, 16384 };
+    Point inside;
+    Point empty;
 
 
 };

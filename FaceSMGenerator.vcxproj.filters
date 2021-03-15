@@ -18,6 +18,7 @@
     </ClCompile>
     <ClCompile Include="FaceSMProcess.cpp" />
     <ClCompile Include="ThreadProcess.cpp" />
+    <ClCompile Include="Editor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui_impl_dx11.h" />
@@ -48,6 +49,7 @@
     </ClInclude>
     <ClInclude Include="FaceSMProcess.h" />
     <ClInclude Include="ThreadProcess.h" />
+    <ClInclude Include="Editor.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">

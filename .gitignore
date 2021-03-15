@@ -14,3 +14,7 @@ x64
 .vs/FaceSMGenerator/v16/ipch/AutoPCH/f7a16b3a97f3ebea/THREADPROCESS.ipch
 .vs/FaceSMGenerator/v16/ipch/AutoPCH/feec13a43338dca/THREADPROCESS.ipch
 *.ipch
+*.db-wal
+*.db
+.vs/FaceSMGenerator/v15/.suo
+*.db-shm
