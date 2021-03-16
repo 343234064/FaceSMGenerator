@@ -331,6 +331,7 @@ public:
 	bool Kick(RequestType Type, std::vector<TextureData>& Quests);
 	bool IsWorking();
 	float GetResult(TextureData* Result);
+	RequestType GetQuestType() { return Request; }
 
 private:
 	void InternelDoRequest();

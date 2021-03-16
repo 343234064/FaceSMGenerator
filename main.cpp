@@ -177,10 +177,11 @@ int main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
+        /*
         if (true) {
             bool show_demo_window = true;
             ImGui::ShowDemoWindow(&show_demo_window);
-        }
+        }*/
         
         gEditor.PreviewRenderer.Render(g_pd3dDeviceContext);
         RenderEditorUI(gEditor);

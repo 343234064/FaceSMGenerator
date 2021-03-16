@@ -496,49 +496,58 @@ float Editor::GetProgress()
 
     TextureData Result;
     float Progress = AsyncProcesser->GetResult(&Result);
-    if (Result.Index != -1)
-    {
-        if (Result.Index > TextureboxList.size() - 1)
+   
+    if (AsyncProcesser->GetQuestType() == RequestType::Generate) {
+        if (Result.Index != -1)
         {
-            std::cerr << "GetResult Index get error [Index:" << Result.Index << ",Actual Size:" << TextureboxList.size() << "]" << std::endl;
-            return 0.0f;
-        }
-        TextureboxItem& Item = TextureboxList[Result.Index];
-        if (Item.SDFData != nullptr)
-        {
-            free(Item.SDFData);
-            Item.SDFData = nullptr;
-        }
-        if (Item.SDFTextureID != nullptr)
-        {
-            Item.SDFTextureID->Release();
-            Item.SDFTextureID = nullptr;
-        }
-        TextureboxList[Result.Index].SDFData = Result.SDFData;
-
-        EngineTextureID* Texture = nullptr;
-        if (!CreateEngineTextureResource(Device, Item.SDFData, Item.Width, Item.Height, 4, &(Texture))) {
-            stbi_image_free(Item.SDFData);
-            Item.SDFData = nullptr;
-        }
-        Item.SDFTextureID = Texture;
-    }
-
-
-    if (Progress >= 1.0f && PreviewDirty)
-    {
-        PreviewRenderer.ClearTexture();
-        for (size_t i = 0; i < TextureboxList.size(); i++) {
-            if (TextureboxList[i].SDFTextureID == nullptr)
+            if (Result.Index > TextureboxList.size() - 1)
             {
-                PreviewRenderer.ClearTexture();
-                break;
+                std::cerr << "GetResult Index get error [Index:" << Result.Index << ",Actual Size:" << TextureboxList.size() << "]" << std::endl;
+                return 0.0f;
             }
-            PreviewRenderer.SetTexture(TextureboxList[i].SDFTextureID);
+            TextureboxItem& Item = TextureboxList[Result.Index];
+            if (Item.SDFData != nullptr)
+            {
+                free(Item.SDFData);
+                Item.SDFData = nullptr;
+            }
+            if (Item.SDFTextureID != nullptr)
+            {
+                Item.SDFTextureID->Release();
+                Item.SDFTextureID = nullptr;
+            }
+            TextureboxList[Result.Index].SDFData = Result.SDFData;
+
+            EngineTextureID* Texture = nullptr;
+            if (!CreateEngineTextureResource(Device, Item.SDFData, Item.Width, Item.Height, 4, &(Texture))) {
+                stbi_image_free(Item.SDFData);
+                Item.SDFData = nullptr;
+            }
+            Item.SDFTextureID = Texture;
         }
 
-        PreviewDirty = false;
+
+        if (Progress >= 1.0f && PreviewDirty)
+        {
+            PreviewRenderer.ClearTexture();
+            for (size_t i = 0; i < TextureboxList.size(); i++) {
+                if (TextureboxList[i].SDFTextureID == nullptr)
+                {
+                    PreviewRenderer.ClearTexture();
+                    break;
+                }
+                PreviewRenderer.SetTexture(TextureboxList[i].SDFTextureID);
+            }
+
+            PreviewDirty = false;
+        }
     }
+    else if (AsyncProcesser->GetQuestType() == RequestType::Bake)
+    {
+
+    }
+
+
     return Progress;
 }
 
@@ -810,6 +819,8 @@ static const char* PixelShaderCode =
             {\
                 float Threshold;\
                 float Soft;\
+                float StartThreshold;\
+                float EndThreshold;\
             };\
             struct PS_INPUT\
             {\
@@ -825,9 +836,9 @@ static const char* PixelShaderCode =
             {\
             float3 color0 = texture0.Sample(sampler0, input.uv).rgb;\
             float3 color1 = texture1.Sample(sampler1, input.uv).rgb;\
-            float3 final_color = lerp(color0, color1, Threshold);\
-            float soft = 0.0005f; \
-            final_color = smoothstep(0.5f-soft, 0.5f+soft, final_color); \
+            float value = (Threshold -  StartThreshold) / (EndThreshold - StartThreshold);\
+            float3 final_color = lerp(color0, color1, value);\
+            final_color = smoothstep(0.5f-Soft, 0.5f+Soft, final_color); \
             return float4(final_color, 1.0f); \
             }";
 
@@ -839,6 +850,8 @@ struct PIXEL_CONSTANT_BUFFER
 {
     float   threshold;
     float   soft;
+    float   start_threshold;
+    float   end_threshold;
 };
 
 bool PreviewTextureRenderer::SetupShaderResources(ID3D11Device* pd3dDevice)
@@ -924,8 +937,11 @@ void PreviewTextureRenderer::Render(ID3D11DeviceContext* deviceContext)
         VERTEX_CONSTANT_BUFFER* constant_buffer = (VERTEX_CONSTANT_BUFFER*)mapped_resource.pData;
         float L = 0.0f;
         float R = 1.0f;
-        float T = 0.0f;
-        float B = 1.0f;
+        // Swap Top and Botton to filp the screen space origin from topleft to bottomleft
+        // T = 0.0f, B = 1.0f Topleft
+        // T = 1.0f, B = 0.0f Bottomleft 
+        float T = 1.0f;
+        float B = 0.0f;
         float mvp[4][4] =
         {
             { 2.0f / (R - L),   0.0f,           0.0f,       0.0f },
@@ -937,15 +953,18 @@ void PreviewTextureRenderer::Render(ID3D11DeviceContext* deviceContext)
         deviceContext->Unmap(VSConstantBuffer, 0);
     }
 
+    CalculateCurrentSampleTextureSlot();
+
     {
         D3D11_MAPPED_SUBRESOURCE mapped_resource;
         if (deviceContext->Map(PSConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource) != S_OK)
             return;
         PIXEL_CONSTANT_BUFFER* constant_buffer = (PIXEL_CONSTANT_BUFFER*)mapped_resource.pData;
-        float Test = 0.8f;
-        float Soft = 0.0005f;
+        float Soft = 0.005f;
         memcpy(&constant_buffer->threshold, &Threshold, sizeof(Threshold));
         memcpy(&constant_buffer->soft, &Soft, sizeof(Soft));
+        memcpy(&constant_buffer->start_threshold, &StartThreshold, sizeof(StartThreshold));
+        memcpy(&constant_buffer->end_threshold, &EndThreshold, sizeof(EndThreshold));
         deviceContext->Unmap(PSConstantBuffer, 0);
     }
 
@@ -967,17 +986,7 @@ void PreviewTextureRenderer::Render(ID3D11DeviceContext* deviceContext)
     deviceContext->PSSetSamplers(0, 1, &TextureSampler);
     deviceContext->PSSetConstantBuffers(0, 1, &PSConstantBuffer);
 
-
-    if (TextureViews.size() >= 2) {
-        TextureViewsToRender[0] = TextureViews[0];
-        TextureViewsToRender[1] = TextureViews[1];
-        deviceContext->PSSetShaderResources(0, 2, TextureViewsToRender);
-    }
-    else
-    {
-        deviceContext->PSSetShaderResources(0, 0, NULL);
-    }
-
+    deviceContext->PSSetShaderResources(0, 2, TextureViewsToRender);
    
     deviceContext->OMSetRenderTargets(1, &RenderTargetView, NULL);
     deviceContext->OMSetBlendState(BlendState, BlendFactor, 0xffffffff);
@@ -990,3 +999,39 @@ void PreviewTextureRenderer::Render(ID3D11DeviceContext* deviceContext)
 }
 
 
+
+void PreviewTextureRenderer::CalculateCurrentSampleTextureSlot()
+{
+    int NumTextures = (int)TextureViews.size();
+    if (NumTextures >= 2) {
+        float Step = 1.0f;
+        if (NumTextures > 2)
+            Step = 1.0f / float(NumTextures - 1) + 0.00001f;
+        
+        int StartTextureId = 0;
+        for (int k = NumTextures - 2; k >= 0; k--)
+        {
+            if (Threshold > Step * k)
+            {
+                StartTextureId = k;
+                break;
+            }
+        }
+
+        StartThreshold = StartTextureId * Step;
+        EndThreshold = StartThreshold + Step;
+        EndThreshold = EndThreshold > 1.0f ? 1.0f : EndThreshold;
+        //std::cout << "Idx: " << StartTextureId << "->" << StartTextureId + 1 << std::endl;
+        //std::cout << "Thres: " << StartThreshold << "->" << EndThreshold << std::endl;
+
+        TextureViewsToRender[0] = TextureViews[StartTextureId];
+        TextureViewsToRender[1] = TextureViews[StartTextureId+1];
+    }
+    else
+    {
+        StartThreshold = 0.0f;
+        EndThreshold = 1.0f;
+        TextureViewsToRender[0] = nullptr;
+        TextureViewsToRender[1] = nullptr;
+    }
+}

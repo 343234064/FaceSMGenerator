@@ -203,7 +203,7 @@ void SDFGenerator::Run(int width, int height, unsigned char* image, unsigned cha
     outsideMax = GenerateSDF(testGrid2);
 
 
-    std::cout << "insideMax " << insideMax << " | outsideMax " << outsideMax << std::endl;
+    std::cout << "Side1£º " << insideMax << " | Side2£º " << outsideMax << std::endl;
     PackData* Pack = (PackData*)(*output);
     for (int y = 0; y < imageHeight; ++y) {
         for (int x = 0; x < imageWidth; ++x) {

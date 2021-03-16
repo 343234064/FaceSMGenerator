@@ -91,7 +91,9 @@ public:
         BlendState(nullptr),
         DepthStencilState(nullptr),
         Initialized(false),
-        Threshold(0.5f)
+        Threshold(0.5f),
+        StartThreshold(0.0f),
+        EndThreshold(1.0f)
     {
         TextureViewsToRender[0] = nullptr;
         TextureViewsToRender[1] = nullptr;
@@ -131,6 +133,9 @@ public:
         TextureViews.clear();
         Threshold = 0.5f;
 
+        StartThreshold = 0.0f;
+        EndThreshold = 1.0f;
+
         Initialized = true;
         return true;
     }
@@ -165,16 +170,24 @@ public:
 
         Threshold = 0.5f;
 
+        StartThreshold = 0.0f;
+        EndThreshold = 1.0f;
+
         Initialized = false;
     }
 
     void Render(ID3D11DeviceContext* deviceContext);
 
     void SetTexture(ID3D11ShaderResourceView* TextureID) {
-        if (TextureID)
+        if (TextureID) {
             TextureViews.push_back(TextureID);
+
+        }
     }
-    void ClearTexture() { TextureViews.clear(); }
+    void ClearTexture() 
+    { 
+        TextureViews.clear(); 
+    }
     void SetThreshold(float Value) { Threshold = Value; }
     bool IsInit() { return Initialized; }
 
@@ -184,6 +197,7 @@ private:
     bool SetupRenderState(ID3D11Device* pd3dDevice);
     bool SetupShaderResources(ID3D11Device* pd3dDevice);
   
+    void CalculateCurrentSampleTextureSlot();
 
 private:
     ID3D11Texture2D* RenderTargetTexture;
@@ -217,6 +231,10 @@ private:
     bool Initialized;
 
     float Threshold;
+
+    //For textures swap
+    float StartThreshold;
+    float EndThreshold;
 };
 
 
