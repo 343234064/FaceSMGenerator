@@ -2,7 +2,6 @@
 #include <iostream>
 #include <chrono>
 
-
 #include "FaceSMProcess.h"
 
 inline SDFGenerator::Point SDFGenerator::Get(Grid& g, int x, int y) {
@@ -238,3 +237,69 @@ void SDFGenerator::Run(int width, int height, unsigned char* image, unsigned cha
 
 }
 
+
+float Lerp(float a, float b, float t)
+{
+    float v = t > 1.0f ? 1.0f : t;
+    v = v < 0.0f ? 0.0f : v;
+
+    return a + v * (b - a);
+}
+
+void ImageBaker::RunStep()
+{
+    if (SourceTexture0 == nullptr || SourceTexture1 == nullptr) return;
+
+    if (OutputImage == nullptr)
+    {
+        OutputImage = (unsigned char*)malloc(ImageSize * sizeof(unsigned char));
+    }
+
+    // Directly return if this two situation is true, we do not need to loop because the result is same as below
+    if (SourceTexture0[CurrentSourcePos] < 127 && SourceTexture1[CurrentSourcePos] < 127)
+    {
+        OutputImage[CurrentSourcePos] = 255;
+        CurrentSourcePos += 1;
+        CurrentColorValue = 0.0f;
+        CurrentSampleTimes = 0;
+        return;
+    }
+    if (SourceTexture0[CurrentSourcePos] > 128 && SourceTexture1[CurrentSourcePos] > 128)
+    {
+        OutputImage[CurrentSourcePos] = 0;
+        CurrentSourcePos += 1;
+        CurrentColorValue = 0.0f;
+        CurrentSampleTimes = 0;
+        return;
+    }
+    
+    float Color0 = SourceTexture0[CurrentSourcePos] / 255;
+    float Color1 = SourceTexture0[CurrentSourcePos] / 255;
+
+    for (int i = 0; i < SAMPLE_STEP ; i++)
+    {
+        float Value = CurrentSampleTimes / SampleTimes;
+        CurrentColorValue += Lerp(Color0, Color1, Value) < 0.49999f ? 1.0f : 0.0f;
+
+        CurrentSampleTimes++;
+        if (CurrentSampleTimes >= SampleTimes)
+            break;
+    }
+
+    // A sample loop is finished, should move to next pixel
+    if (CurrentSampleTimes >= SampleTimes) {
+        CurrentColorValue = CurrentColorValue / SampleTimes;
+        OutputImage[CurrentSourcePos] = unsigned char(CurrentColorValue * 255);
+
+        CurrentSourcePos += 1;
+        CurrentColorValue = 0.0f;
+        CurrentSampleTimes = 0;
+    }
+
+    // All pxiel of two sample texture is done, should move to next texture
+    if (CurrentSourcePos >= ImageSize);
+    {
+
+    }
+    
+}

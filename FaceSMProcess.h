@@ -98,3 +98,74 @@ private:
 
 
 };
+
+
+class ImageBaker
+{
+#define SAMPLE_STEP 5
+
+public:
+    ImageBaker ():
+        OutputImage(nullptr),
+        SourceTexture0(nullptr),
+        SourceTexture1(nullptr),
+        SampleTimes(0),
+        ImageHeight(0),
+        ImageWidth(0),
+        OutputFileName("face_map_output.png"),
+        TotalRunTimes(0)
+    {}
+    ~ImageBaker()
+    {
+        Clear();
+    }
+
+
+    void SetHeightAndWidth(int Height, int Width) { ImageSize = Height * Width; }
+    void SetSampleTimes(int SampleNum) { SampleTimes = SampleNum; }
+    void SetOutputFileName(int FileName) { OutputFileName = FileName; }
+
+    void SetSourceTexture0(unsigned char* Source) { SourceTexture0 = Source; }
+    void SetSourceTexture1(unsigned char* Source) { SourceTexture1 = Source; }
+
+
+    void RunStep();
+
+    void Clear()
+    {
+        if (OutputImage != nullptr) {
+            free(OutputImage);
+            OutputImage = nullptr;
+        }
+        SourceTexture0 = nullptr;
+        SourceTexture1 = nullptr;
+
+        SampleTimes = 0;
+        ImageSize = 0;
+    }
+
+private:
+
+    void WriteImage();
+
+
+
+private:
+    unsigned char* OutputImage;
+
+    unsigned char* SourceTexture0;
+    unsigned char* SourceTexture1;
+
+    int SampleTimes;
+    int ImageSize;
+
+    std::string OutputFileName;
+
+    int TotalRunTimes;
+
+    /*Running states*/
+    float CurrentSampleTimes;
+    float CurrentColorValue;
+
+    int CurrentSourcePos;
+};

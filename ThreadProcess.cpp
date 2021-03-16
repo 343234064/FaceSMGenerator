@@ -308,44 +308,44 @@ void ThreadProcesser::InternelDoRequest()
 {
 	if (QuestList.size() == 0) return;
 
-	TextureData& CurrentQuest = QuestList[CurrentQuestPos];
-
-	std::cout << "Handling -> " << CurrentQuest.Index << " |" << CurrentQuest.Width<<"x"<< CurrentQuest.Height<< std::endl;
-
 	// Do Generate
 	if (Request == RequestType::Generate)
 	{
-		std::cout << "Generate..." << std::endl;
+		TextureData& CurrentQuest = QuestList[CurrentQuestPos];
+
+		std::cout << "Handling -> " << CurrentQuest.Index << " |" << CurrentQuest.Width << "x" << CurrentQuest.Height << std::endl;
+		std::cout << "Generating..." << std::endl;
+		
 		unsigned char* output = (unsigned char*)malloc(4 * CurrentQuest.Width * CurrentQuest.Height * sizeof(unsigned char));
 		Generator.Run(CurrentQuest.Width, CurrentQuest.Height, CurrentQuest.Data, &output);
 		CurrentQuest.SDFData = output;
+
+		{
+			LockGuard<WindowsCriticalSection> Lock(CriticalSection);
+			ResultList.push_back(CurrentQuest);
+		}
+
+		CurrentQuestPos += 1;
+		Progress += 1.0f / QuestList.size();
+		if (Progress >= 0.9998f)
+		{
+			Progress = 1.0f;
+		}
+		if (CurrentQuestPos >= (int)QuestList.size())
+		{
+			WorkingCounter.Decrement();
+			std::cout << "All Done" << std::endl;
+		}
 	}
 	// Do Bake
 	else if (Request == RequestType::Bake)
 	{
+		std::cout << "Baking..." << std::endl;
 
 	}
 	else
 	{
 		std::cout << "RequestType error:  " << (int)Request << std::endl;
-	}
-
-	
-	{
-		LockGuard<WindowsCriticalSection> Lock(CriticalSection);
-		ResultList.push_back(CurrentQuest);
-	}
-
-	CurrentQuestPos += 1;
-	Progress += 1.0f / QuestList.size();
-	if (Progress >= 0.9998f)
-	{
-		Progress = 1.0f;
-	}
-	if (CurrentQuestPos >= (int)QuestList.size())
-	{
-		WorkingCounter.Decrement();
-		std::cout << "All Done" << std::endl;
 	}
 
 	

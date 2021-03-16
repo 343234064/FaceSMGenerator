@@ -193,7 +193,7 @@ void RenderEditorUI(Editor& UIEditor)
         ImGui::SameLine(20.0, 10.0);
         ImGui::InputText("Sample Times ", UIEditor.SampleTimesText, DIGIT_INPUTTEXT_SIZE, ImGuiInputTextFlags_CharsDecimal);
         ImGui::SameLine(0.0, 0.0);
-        ShowHelpMarker("The higher the slower, typicallly set to 200");
+        ShowHelpMarker("The higher the slower, typicallly set to 500");
         ImGui::Text("");
         ImGui::SameLine(20.0, 10.0);
         ImGui::InputText("Blur Size ", UIEditor.BlurSizeText, DIGIT_INPUTTEXT_SIZE, ImGuiInputTextFlags_CharsDecimal);
@@ -206,6 +206,8 @@ void RenderEditorUI(Editor& UIEditor)
         {
             UIEditor.OnBakeButtonClicked();
         }
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1, 1, 0, 1), UIEditor.BakeHintText);
 
         ImGui::Text("");
         ImGui::Separator();
@@ -347,6 +349,8 @@ void Editor::OnAddButtonClicked()
     {
         LoadTextureData(it);
     }
+
+    Generated = false;
 }
 
 
@@ -376,6 +380,7 @@ void Editor::OnDeleteButtonClicked()
         }
     }
     PreviewRenderer.ClearTexture();
+    Generated = false;
 
     snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Added", (int)TextureboxList.size());
 }
@@ -400,6 +405,7 @@ void Editor::OnDeleteAllButtonClicked()
     }
     TextureboxList.clear();
     PreviewRenderer.ClearTexture();
+    Generated = false;
 
     snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Added", (int)TextureboxList.size());
 }
@@ -407,7 +413,8 @@ void Editor::OnDeleteAllButtonClicked()
 
 void Editor::OnReloadSelectedClicked()
 {
-
+    PreviewRenderer.ClearTexture();
+    Generated = false;
 }
 
 
@@ -476,7 +483,7 @@ void Editor::OnGenerateButtonClicked()
             PreviewRenderer.ClearTexture();
             PreviewDirty = true;
         }
-
+        Generated = false;
     }
 }
 
@@ -484,7 +491,33 @@ void Editor::OnGenerateButtonClicked()
 
 void Editor::OnBakeButtonClicked()
 {
+    if (!Generated) {
+        if (AsyncProcesser && AsyncProcesser->IsWorking())
+            snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
+        else
+            snprintf(BakeHintText, HINT_TEXT_SIZE, "Please press generate button first");
+        return;
+    }
+    snprintf(BakeHintText, HINT_TEXT_SIZE, "");
 
+    std::vector<TextureData> Textures;
+    for (size_t i = 0; i < TextureboxList.size(); i++)
+    {
+        TextureData NewData = TextureData(i, TextureboxList[i].Height, TextureboxList[i].Width, nullptr);
+        NewData.SDFData = TextureboxList[i].SDFData;
+        Textures.push_back(NewData);
+    }
+
+    bool Success = false;
+    Success = AsyncProcesser->Kick(RequestType::Bake, Textures);
+    if (!Success) {
+        snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
+    }
+    else
+    {
+        snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
+    }
+    
 }
 
 
@@ -540,6 +573,7 @@ float Editor::GetProgress()
             }
 
             PreviewDirty = false;
+            Generated = true;
         }
     }
     else if (AsyncProcesser->GetQuestType() == RequestType::Bake)

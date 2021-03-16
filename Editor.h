@@ -250,22 +250,25 @@ typedef std::vector<TextureboxItem>::iterator ItemIter;
 public:
     std::vector<TextureboxItem> TextureboxList;
 
-    char SampleTimesText[DIGIT_INPUTTEXT_SIZE] = "200";
+    char SampleTimesText[DIGIT_INPUTTEXT_SIZE] = "500";
     char BlurSizeText[DIGIT_INPUTTEXT_SIZE] = "4";
     char TextureboxStateText[TEXTUREBOX_STATE_TEXT_SIZE] = "";
     char GenerateHintText[HINT_TEXT_SIZE] = "";
     char ProgressHintText[HINT_TEXT_SIZE] = "";
+    char BakeHintText[HINT_TEXT_SIZE] = "";
 
     const float PreviewSliderMin = 0.0f;
     const float PreviewSliderMax = 1.0f;
     float PreviewSliderValue = 0.5f;
 
     PreviewTextureRenderer PreviewRenderer;
-    bool PreviewDirty = false;
+    
 
 private:
     ThreadProcesser* AsyncProcesser = nullptr;
 
+    bool PreviewDirty = false;
+    bool Generated = false;
 
 public:
     void SetEngineDevice(EngineDevice* device) { Device = device; }
