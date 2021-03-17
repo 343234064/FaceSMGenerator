@@ -330,7 +330,7 @@ public:
 	/****Call in Client****/
 	bool Kick(RequestType Type, void* Data);
 	bool IsWorking();
-	float GetResult(TextureData* Result);
+	double GetResult(TextureData* Result);
 	RequestType GetQuestType() { return Request; }
 
 private:
@@ -351,7 +351,7 @@ private:
 	int CurrentQuestPos;
 	int CurrentResultPos;
 
-	float Progress;
+	double Progress;
 
 	RequestType Request;
 

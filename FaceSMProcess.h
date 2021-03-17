@@ -120,7 +120,7 @@ private:
 
 class ImageBaker
 {
-#define SAMPLE_STEP 100
+#define SAMPLE_STEP 200
 
 public:
     ImageBaker ():
@@ -151,7 +151,7 @@ public:
     bool IsCompleted() { return Completed && ImageWrote; }
 
     void Prepare();
-    float RunStep();
+    double RunStep();
     
     void Cleanup()
     {
@@ -186,7 +186,7 @@ private:
     int ImageWidth;
     int ImageSize;
 
-    float ProgressPerStep;
+    double ProgressPerStep;
 
     /*Running states*/
     bool Completed;
@@ -194,7 +194,7 @@ private:
 
     int CurrentSourcePos;
     int CurrentPixelPos;
-    float CurrentSampleTimes;
-    float CurrentColorValue;
+    double CurrentSampleTimes;
+    double CurrentColorValue;
 
 };

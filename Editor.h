@@ -302,7 +302,7 @@ public:
     void OnReloadSelectedClicked();
     void OnGenerateButtonClicked();
     void OnBakeButtonClicked();
-    float GetProgress();
+    double GetProgress();
 
 
 

@@ -252,9 +252,11 @@ void ImageBaker::Prepare()
         free(OutputImage);
     }
     OutputImage = (PackData*)malloc(ImageSize * sizeof(PackData));
-    memset(OutputImage, 0, ImageSize * sizeof(PackData));
+    //memset(OutputImage, 0, ImageSize * sizeof(PackData));
+   
 
-    ProgressPerStep = (SAMPLE_STEP / ((float)ImageSize * (float)SampleTimes * (SourceList.size() - 1)));//5% for write image 
+
+    ProgressPerStep = (SAMPLE_STEP / ((double)ImageSize * (double)SampleTimes * (SourceList.size() - 1)));//5% for write image 
 
     CurrentSourcePos = 0;
     CurrentPixelPos = 0;
@@ -270,17 +272,17 @@ void ImageBaker::Prepare()
 }
 
 
-float ImageBaker::RunStep()
+double ImageBaker::RunStep()
 {
     if (Completed) {
         if (!ImageWrote) return WriteImage();
-        return 1.0f;
+        return 1.0;
     }
     PackData* SourceTexture0 = SourceList[CurrentSourcePos];
     PackData* SourceTexture1 = SourceList[CurrentSourcePos+1];
 
     bool Skip = false;
-    float Progress = ProgressPerStep;
+    double Progress = ProgressPerStep;
     /*
     // Directly return if this two situation is true, we do not need to loop because the result is same as below
     if (SourceTexture0[CurrentPixelPos] < 127 && SourceTexture1[CurrentPixelPos] < 127)
@@ -303,15 +305,18 @@ float ImageBaker::RunStep()
     }*/
     
     if (!Skip) {
-        float Color0 = SourceTexture0[CurrentPixelPos].r / 255;
-        float Color1 = SourceTexture1[CurrentPixelPos].r / 255;
+        double s0 = SourceTexture0[CurrentPixelPos].g;
+        double s1 = SourceTexture1[CurrentPixelPos].g;
+
+        double Color0 = s0 / 255.0;
+        double Color1 = s1 / 255.0;
 
 
         for (int i = 0; i < SAMPLE_STEP; i++)
         {
-            float Value = CurrentSampleTimes / SampleTimes;
-            CurrentColorValue += Lerp(Color0, Color1, Value) < 0.49999f ? 1.0f : 0.0f;
-
+            double Value = CurrentSampleTimes / SampleTimes;
+            CurrentColorValue += Lerp(Color0, Color1, Value) < 0.49999f ? 0.0f : 1.0f;
+            //CurrentColorValue += Color1;
             CurrentSampleTimes++;
             if (CurrentSampleTimes >= SampleTimes)
                 break;
@@ -319,12 +324,13 @@ float ImageBaker::RunStep()
 
         // A sample loop is finished, should move to next pixel
         if (CurrentSampleTimes >= SampleTimes) {
-            CurrentColorValue = CurrentColorValue / SampleTimes;
-            unsigned char OutColor = unsigned char(CurrentColorValue * 255);
-            OutputImage[CurrentPixelPos].r += OutColor;
-            OutputImage[CurrentPixelPos].g+= OutColor;
-            OutputImage[CurrentPixelPos].b += OutColor;
-            OutputImage[CurrentPixelPos].a += OutColor;
+            CurrentColorValue = CurrentColorValue / (double)SampleTimes;
+            unsigned char OutColor =  unsigned char(CurrentColorValue * 255.0);
+            //OutColor =(unsigned char)pow(double(OutColor), 2.2);
+            OutputImage[CurrentPixelPos].r = OutColor;
+            OutputImage[CurrentPixelPos].g= OutColor;
+            OutputImage[CurrentPixelPos].b = OutColor;
+            OutputImage[CurrentPixelPos].a = 255;
 
             CurrentPixelPos += 1;
             CurrentColorValue = 0.0f;
@@ -352,15 +358,13 @@ float ImageBaker::RunStep()
 
 float ImageBaker::WriteImage()
 {
-    ImageWrote = true;
-    return 0.0f;
-
     if (stbi_write_png(OutputFileName.c_str(), ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, ImageWidth * 4) == 0)
         std::cerr << "Write image failed: "<< OutputFileName.c_str() << std::endl;
-    
+    stbi_write_jpg("Test5.jpg", ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, 100);
+
     std::cout << "Output image finished :" << OutputFileName.c_str() << std::endl;
     ImageWrote = true;
-    Cleanup();
+    //Cleanup();
 
-    return 0.0f;
+    return 0.0;
 }

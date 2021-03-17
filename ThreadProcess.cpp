@@ -306,9 +306,9 @@ bool ThreadProcesser::IsWorking()
 	return a || b;
 }
 
-float ThreadProcesser::GetResult(TextureData* Result)
+double ThreadProcesser::GetResult(TextureData* Result)
 {
-	if (Result == nullptr) return 0.0f;
+	if (Result == nullptr) return 0.0;
 
 	LockGuard<WindowsCriticalSection> Lock(CriticalSection);
 
@@ -352,10 +352,10 @@ void ThreadProcesser::InternelDoRequest()
 		}
 
 		CurrentQuestPos += 1;
-		Progress += 1.0f / QuestList.size();
-		if (Progress >= 0.9998f)
+		Progress += 1.0 / QuestList.size();
+		if (Progress >= 0.99998)
 		{
-			Progress = 1.0f;
+			Progress = 1.0;
 		}
 		if (CurrentQuestPos >= (int)QuestList.size())
 		{
@@ -368,9 +368,9 @@ void ThreadProcesser::InternelDoRequest()
 	{
 		Progress += Baker.RunStep();
 		
-		if (Progress >= 0.99998f)
+		if (Progress >= 0.99998)
 		{
-			Progress = 1.0f;
+			Progress = 1.0;
 		}
 		if (Baker.IsCompleted())
 		{

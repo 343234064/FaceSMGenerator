@@ -220,7 +220,7 @@ void RenderEditorUI(Editor& UIEditor)
         ImGui::SameLine();
         ImGui::TextColored(ImVec4(1, 0, 0, 1), UIEditor.ProgressHintText);
 
-        float Progress = UIEditor.GetProgress();
+        double Progress = UIEditor.GetProgress();
         ImGui::ProgressBar(Progress, ImVec2(-1.0f, 0.0f));
 
 
@@ -552,13 +552,13 @@ void Editor::OnBakeButtonClicked()
 
 
 
-float Editor::GetProgress()
+double Editor::GetProgress()
 {
     if (AsyncProcesser == nullptr)
         return 0.0f;
 
     TextureData Result;
-    float Progress = AsyncProcesser->GetResult(&Result);
+    double Progress = AsyncProcesser->GetResult(&Result);
    
     if (AsyncProcesser->GetQuestType() == RequestType::Generate) {
         if (Result.Index != -1)
@@ -566,7 +566,7 @@ float Editor::GetProgress()
             if (Result.Index > TextureboxList.size() - 1)
             {
                 std::cerr << "GetResult Index get error [Index:" << Result.Index << ",Actual Size:" << TextureboxList.size() << "]" << std::endl;
-                return 0.0f;
+                return 0.0;
             }
             TextureboxItem& Item = TextureboxList[Result.Index];
             if (Item.SDFData != nullptr)
@@ -590,7 +590,7 @@ float Editor::GetProgress()
         }
 
 
-        if (Progress >= 1.0f && PreviewDirty)
+        if (Progress >= 1.0 && PreviewDirty)
         {
             PreviewRenderer.ClearTexture();
             for (size_t i = 0; i < TextureboxList.size(); i++) {
@@ -609,7 +609,7 @@ float Editor::GetProgress()
     }
     else if (AsyncProcesser->GetQuestType() == RequestType::Bake)
     {
-        if (Progress >= 1.0f)
+        if (Progress >= 1.0)
         {
             if (Result.Index != -1)
             {
@@ -619,7 +619,7 @@ float Editor::GetProgress()
                 }
                 TestImage = Texture;
             }
-
+           
             snprintf(ProgressHintText, HINT_TEXT_SIZE, "Done");
         }
         else
