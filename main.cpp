@@ -197,6 +197,7 @@ int main(int, char**)
         //g_pSwapChain->Present(0, 0); // Present without vsync
     }
 
+
     gEditor.PreviewRenderer.Uninitialize();
 
     ImGui_ImplDX11_Shutdown();

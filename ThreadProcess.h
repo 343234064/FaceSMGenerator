@@ -328,7 +328,7 @@ public:
 	void Stop() override;
 
 	/****Call in Client****/
-	bool Kick(RequestType Type, std::vector<TextureData>& Quests);
+	bool Kick(RequestType Type, void* Data);
 	bool IsWorking();
 	float GetResult(TextureData* Result);
 	RequestType GetQuestType() { return Request; }
@@ -356,4 +356,5 @@ private:
 	RequestType Request;
 
 	SDFGenerator Generator;
+	ImageBaker Baker;
 };

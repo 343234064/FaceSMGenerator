@@ -241,17 +241,18 @@ private:
 
 class Editor
 {
-#define DIGIT_INPUTTEXT_SIZE 8
 #define TEXTUREBOX_STATE_TEXT_SIZE 32
 #define HINT_TEXT_SIZE 128
+#define FILE_NAME_SIZE 64
 
 typedef std::vector<TextureboxItem>::iterator ItemIter;
 
 public:
     std::vector<TextureboxItem> TextureboxList;
 
-    char SampleTimesText[DIGIT_INPUTTEXT_SIZE] = "500";
-    char BlurSizeText[DIGIT_INPUTTEXT_SIZE] = "4";
+    int SampleTimes = 500;
+    int BlurSize = 4;
+    char OutputFileNameText[FILE_NAME_SIZE] = "facial_map_output.png";
     char TextureboxStateText[TEXTUREBOX_STATE_TEXT_SIZE] = "";
     char GenerateHintText[HINT_TEXT_SIZE] = "";
     char ProgressHintText[HINT_TEXT_SIZE] = "";
@@ -263,7 +264,7 @@ public:
 
     PreviewTextureRenderer PreviewRenderer;
     
-
+    EngineTextureID* TestImage = nullptr;
 private:
     ThreadProcesser* AsyncProcesser = nullptr;
 

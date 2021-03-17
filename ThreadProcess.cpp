@@ -1,7 +1,7 @@
 #include "ThreadProcess.h"
 #include <iostream>
 #include <intrin.h>
-
+#include <utility>
 
 template <typename GuardObject>
 class LockGuard
@@ -224,7 +224,7 @@ UINT32 ThreadProcesser::Run()
 		if (WorkingCounter.GetCounter() > 0)
 		{
 			InternelDoRequest();
-			::Sleep(5);
+			//::Sleep(5);
 		}
 		else
 		{
@@ -244,7 +244,7 @@ void ThreadProcesser::Stop()
 
 
 
-bool ThreadProcesser::Kick(RequestType Type, std::vector<TextureData>& Quests)
+bool ThreadProcesser::Kick(RequestType Type, void* Data)
 {
 	if (IsWorking())
 		return false;
@@ -254,12 +254,38 @@ bool ThreadProcesser::Kick(RequestType Type, std::vector<TextureData>& Quests)
 	QuestList.clear();
 	ResultList.clear();
 
-	for (size_t i = 0; i < Quests.size(); i++)
-	{
-		QuestList.push_back(Quests[i]);
-	}
-
 	Request = Type;
+
+	if (Request == RequestType::Generate) {
+		std::vector<TextureData>* Quests = (std::vector<TextureData>*)Data;
+		for (size_t i = 0; i < Quests->size(); i++)
+		{
+			QuestList.push_back(Quests->at(i));
+		}
+	}
+	else if (Request == RequestType::Bake)
+	{
+		std::pair<BakeSettting, std::vector<TextureData>>* Quests = (std::pair<BakeSettting, std::vector<TextureData>>*)Data;
+		BakeSettting& Setting = Quests->first;
+		std::vector<TextureData>& TextureDatas = Quests->second;
+
+		int Height = 0;
+		int Width = 0;
+		for (int i = 0; i < TextureDatas.size(); i++)
+		{
+			Height = TextureDatas[i].Height;
+			Width = TextureDatas[i].Width;
+			Baker.SetSourceTexture(TextureDatas[i].SDFData);
+		}
+		Baker.SetHeightAndWidth(Height, Width);
+
+		Baker.SetOutputFileName(Setting.FileName);
+		Baker.SetSampleTimes(Setting.SampleTimes);
+		Baker.Prepare();
+
+		QuestList.push_back(TextureData(0, Height, Width, nullptr));
+	}
+	
 	
 	CurrentQuestPos = 0;
 	CurrentResultPos = 0;
@@ -340,7 +366,23 @@ void ThreadProcesser::InternelDoRequest()
 	// Do Bake
 	else if (Request == RequestType::Bake)
 	{
-		std::cout << "Baking..." << std::endl;
+		Progress += Baker.RunStep();
+		
+		if (Progress >= 0.99998f)
+		{
+			Progress = 1.0f;
+		}
+		if (Baker.IsCompleted())
+		{
+			{
+				LockGuard<WindowsCriticalSection> Lock(CriticalSection);
+				TextureData NewData = TextureData(0, QuestList[0].Height, QuestList[0].Width, nullptr);
+				NewData.SDFData = (unsigned char*)Baker.GetOutputImage();
+				ResultList.push_back(NewData);
+			}
+			WorkingCounter.Decrement();
+			std::cout << "All Done" << std::endl;
+		}
 
 	}
 	else

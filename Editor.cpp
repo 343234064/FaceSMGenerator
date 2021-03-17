@@ -2,8 +2,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image/stb-master/stb_image.h"
-
 #include <d3dcompiler.h>
+#include <utility>
 
 template<typename ... Args>
 std::string string_format(const std::string& format, Args ... args)
@@ -191,14 +191,17 @@ void RenderEditorUI(Editor& UIEditor)
         ImGui::Text("");
         ImGui::Text("");
         ImGui::SameLine(20.0, 10.0);
-        ImGui::InputText("Sample Times ", UIEditor.SampleTimesText, DIGIT_INPUTTEXT_SIZE, ImGuiInputTextFlags_CharsDecimal);
+        ImGui::InputInt("Sample Times ", &UIEditor.SampleTimes);
         ImGui::SameLine(0.0, 0.0);
         ShowHelpMarker("The higher the slower, typicallly set to 500");
         ImGui::Text("");
         ImGui::SameLine(20.0, 10.0);
-        ImGui::InputText("Blur Size ", UIEditor.BlurSizeText, DIGIT_INPUTTEXT_SIZE, ImGuiInputTextFlags_CharsDecimal);
+        ImGui::InputInt("Blur Size ", &UIEditor.BlurSize, 1, 100);
         ImGui::SameLine(0.0, 0.0);
         ShowHelpMarker("The higher the slower, typicallly set to 4");
+        ImGui::Text("");
+        ImGui::SameLine(20.0, 10.0);
+        ImGui::InputText("Output File Name", UIEditor.OutputFileNameText, FILE_NAME_SIZE, ImGuiInputTextFlags_CharsNoBlank);
         ImGui::Text("");
         ImGui::Text("");
         ImGui::SameLine(20.0, 10.0);
@@ -274,6 +277,15 @@ void RenderEditorUI(Editor& UIEditor)
 
         ImGui::End();
     }
+
+    // for test
+    {
+
+        ImGui::Begin("Test", NULL, ImGuiWindowFlags_NoResize);
+        ImGui::SetWindowSize(ImVec2(300, 300));
+        ImGui::Image((void*)UIEditor.TestImage, ImVec2(PREVIEW_TEXTURE_SIZE, PREVIEW_TEXTURE_SIZE));
+        ImGui::End();
+    }
 }
 
 
@@ -331,7 +343,6 @@ void Editor::OnAddButtonClicked()
             return;
         }
     }
-
     std::vector<std::string> FilesPaths = BrowseFile();
     int FilesNum = (int)FilesPaths.size();
 
@@ -473,7 +484,7 @@ void Editor::OnGenerateButtonClicked()
         }
 
         bool Success = false;
-        Success = AsyncProcesser->Kick(RequestType::Generate, Textures);
+        Success = AsyncProcesser->Kick(RequestType::Generate, (void*)&Textures);
         if (!Success) {
             snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
         }
@@ -500,6 +511,21 @@ void Editor::OnBakeButtonClicked()
     }
     snprintf(BakeHintText, HINT_TEXT_SIZE, "");
 
+    BakeSettting Setting;
+    Setting.SampleTimes = SampleTimes >= 0 ? SampleTimes : 1;
+    Setting.FileName = OutputFileNameText;
+
+    if (Setting.FileName.size() == 0)
+    {
+        snprintf(BakeHintText, HINT_TEXT_SIZE, "Please at least input a file name");
+        return;
+    }
+    std::string Ext = Setting.FileName.substr(Setting.FileName.size() - 4, 4);
+    if (Ext != std::string(".png"))
+    {
+        Setting.FileName += ".png";
+    }
+
     std::vector<TextureData> Textures;
     for (size_t i = 0; i < TextureboxList.size(); i++)
     {
@@ -508,8 +534,12 @@ void Editor::OnBakeButtonClicked()
         Textures.push_back(NewData);
     }
 
+    std::pair< BakeSettting, std::vector<TextureData>> Data;
+    Data.first = Setting;
+    Data.second = Textures;
+
     bool Success = false;
-    Success = AsyncProcesser->Kick(RequestType::Bake, Textures);
+    Success = AsyncProcesser->Kick(RequestType::Bake, (void*)&Data);
     if (!Success) {
         snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
     }
@@ -574,9 +604,31 @@ float Editor::GetProgress()
 
             PreviewDirty = false;
             Generated = true;
+            snprintf(ProgressHintText, HINT_TEXT_SIZE, "Done");
         }
     }
     else if (AsyncProcesser->GetQuestType() == RequestType::Bake)
+    {
+        if (Progress >= 1.0f)
+        {
+            if (Result.Index != -1)
+            {
+                EngineTextureID* Texture = nullptr;
+                if (!CreateEngineTextureResource(Device, Result.SDFData, Result.Width, Result.Height, 4, &(Texture))) {
+                    std::cerr << "Create Test image error " << Progress << std::endl;
+                }
+                TestImage = Texture;
+            }
+
+            snprintf(ProgressHintText, HINT_TEXT_SIZE, "Done");
+        }
+        else
+        {
+            snprintf(ProgressHintText, HINT_TEXT_SIZE, "Baking");
+            std::cout << "Current progress: " << Progress << std::endl;
+        }
+    }
+    else
     {
 
     }

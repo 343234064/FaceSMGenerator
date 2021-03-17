@@ -1,7 +1,25 @@
 #pragma once
 
 #include <immintrin.h>
+#include <vector>
 
+struct BakeSettting
+{
+public:
+    BakeSettting(int SampleNum = 0) :
+        SampleTimes(SampleNum)
+    {}
+    std::string FileName;
+    int SampleTimes;
+};
+
+struct PackData
+{
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    unsigned char a;
+};
 
 
 struct TextureData
@@ -18,8 +36,8 @@ public:
     int Index;
     int Height;
     int Width;
-    unsigned char* Data;
-    unsigned char* SDFData;
+    unsigned char* Data; // 4 channel
+    unsigned char* SDFData; // 4 channel
 
     TextureData& operator=(TextureData& Other)
     {
@@ -29,7 +47,7 @@ public:
         Height = Other.Height;
         Width = Other.Width;
         Data = Other.Data;
-        SDFData = Other.SDFData;
+        SDFData = Other.SDFData; 
 
         return *this;
     }
@@ -102,70 +120,81 @@ private:
 
 class ImageBaker
 {
-#define SAMPLE_STEP 5
+#define SAMPLE_STEP 100
 
 public:
     ImageBaker ():
         OutputImage(nullptr),
-        SourceTexture0(nullptr),
-        SourceTexture1(nullptr),
+        OutputFileName("face_map_output.png"),
         SampleTimes(0),
         ImageHeight(0),
         ImageWidth(0),
-        OutputFileName("face_map_output.png"),
-        TotalRunTimes(0)
+        ImageSize(0),
+        ProgressPerStep(0),
+        Completed(true),
+        ImageWrote(true),
+        CurrentSourcePos(0),
+        CurrentPixelPos(0),
+        CurrentSampleTimes(0),
+        CurrentColorValue(0)
     {}
     ~ImageBaker()
     {
-        Clear();
+        Cleanup();
     }
 
-
-    void SetHeightAndWidth(int Height, int Width) { ImageSize = Height * Width; }
     void SetSampleTimes(int SampleNum) { SampleTimes = SampleNum; }
-    void SetOutputFileName(int FileName) { OutputFileName = FileName; }
+    void SetOutputFileName(std::string& FileName) { OutputFileName = FileName; }
+    void SetHeightAndWidth(int Height, int Width) { ImageSize = Height * Width; ImageHeight = Height; ImageWidth = Width; }
+    void SetSourceTexture(unsigned char* Source) { if (Source == nullptr) return; SourceList.push_back((PackData*)Source); }
 
-    void SetSourceTexture0(unsigned char* Source) { SourceTexture0 = Source; }
-    void SetSourceTexture1(unsigned char* Source) { SourceTexture1 = Source; }
+    bool IsCompleted() { return Completed && ImageWrote; }
 
-
-    void RunStep();
-
-    void Clear()
+    void Prepare();
+    float RunStep();
+    
+    void Cleanup()
     {
         if (OutputImage != nullptr) {
             free(OutputImage);
             OutputImage = nullptr;
         }
-        SourceTexture0 = nullptr;
-        SourceTexture1 = nullptr;
+        SourceList.clear();
+        CurrentSourcePos = 0;
+        CurrentPixelPos = 0;
+        CurrentSampleTimes = 0;
+        CurrentColorValue = 0;
 
-        SampleTimes = 0;
+        ImageHeight = 0;
+        ImageWidth = 0;
         ImageSize = 0;
     }
 
-private:
-
-    void WriteImage();
-
-
+    PackData* GetOutputImage() { return OutputImage; }
 
 private:
-    unsigned char* OutputImage;
+    float WriteImage();
+ 
 
-    unsigned char* SourceTexture0;
-    unsigned char* SourceTexture1;
-
+private:
+    PackData* OutputImage;
+    std::vector<PackData*> SourceList;
+    
+    std::string OutputFileName;
     int SampleTimes;
+    int ImageHeight;
+    int ImageWidth;
     int ImageSize;
 
-    std::string OutputFileName;
-
-    int TotalRunTimes;
+    float ProgressPerStep;
 
     /*Running states*/
+    bool Completed;
+    bool ImageWrote;
+
+    int CurrentSourcePos;
+    int CurrentPixelPos;
     float CurrentSampleTimes;
     float CurrentColorValue;
 
-    int CurrentSourcePos;
 };
