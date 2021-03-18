@@ -6,11 +6,15 @@
 struct BakeSettting
 {
 public:
-    BakeSettting(int SampleNum = 0) :
-        SampleTimes(SampleNum)
+    BakeSettting(int SampleNum = 0, int Height = 0, int Width = 0) :
+        SampleTimes(SampleNum),
+        Height(0),
+        Width(0)
     {}
     std::string FileName;
     int SampleTimes;
+    int Height;
+    int Width;
 };
 
 struct PackData
@@ -131,6 +135,7 @@ public:
         ImageWidth(0),
         ImageSize(0),
         ProgressPerStep(0),
+        //ProgressPerSampleTimes(0),
         Completed(true),
         ImageWrote(true),
         CurrentSourcePos(0),
@@ -145,12 +150,9 @@ public:
 
     void SetSampleTimes(int SampleNum) { SampleTimes = SampleNum; }
     void SetOutputFileName(std::string& FileName) { OutputFileName = FileName; }
-    void SetHeightAndWidth(int Height, int Width) { ImageSize = Height * Width; ImageHeight = Height; ImageWidth = Width; }
-    void SetSourceTexture(unsigned char* Source) { if (Source == nullptr) return; SourceList.push_back((PackData*)Source); }
-
     bool IsCompleted() { return Completed && ImageWrote; }
 
-    void Prepare();
+    void Prepare(int Height, int Width, std::vector<unsigned char*>& Sources);
     double RunStep();
     
     void Cleanup()
@@ -165,6 +167,9 @@ public:
         CurrentSampleTimes = 0;
         CurrentColorValue = 0;
 
+        ProgressPerStep = 0;
+        //ProgressPerSampleTimes = 0;
+
         ImageHeight = 0;
         ImageWidth = 0;
         ImageSize = 0;
@@ -173,8 +178,8 @@ public:
     PackData* GetOutputImage() { return OutputImage; }
 
 private:
-    float WriteImage();
- 
+    double WriteImage();
+    double CalculateFinalColor(double Color);
 
 private:
     PackData* OutputImage;
@@ -182,11 +187,13 @@ private:
     
     std::string OutputFileName;
     int SampleTimes;
+
     int ImageHeight;
     int ImageWidth;
     int ImageSize;
 
     double ProgressPerStep;
+    //double ProgressPerSampleTimes;
 
     /*Running states*/
     bool Completed;

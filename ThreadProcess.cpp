@@ -265,25 +265,15 @@ bool ThreadProcesser::Kick(RequestType Type, void* Data)
 	}
 	else if (Request == RequestType::Bake)
 	{
-		std::pair<BakeSettting, std::vector<TextureData>>* Quests = (std::pair<BakeSettting, std::vector<TextureData>>*)Data;
+		std::pair<BakeSettting, std::vector<unsigned char*>>* Quests = (std::pair<BakeSettting, std::vector<unsigned char*>>*)Data;
 		BakeSettting& Setting = Quests->first;
-		std::vector<TextureData>& TextureDatas = Quests->second;
-
-		int Height = 0;
-		int Width = 0;
-		for (int i = 0; i < TextureDatas.size(); i++)
-		{
-			Height = TextureDatas[i].Height;
-			Width = TextureDatas[i].Width;
-			Baker.SetSourceTexture(TextureDatas[i].SDFData);
-		}
-		Baker.SetHeightAndWidth(Height, Width);
+		std::vector<unsigned char*>& TextureDatas = Quests->second;
 
 		Baker.SetOutputFileName(Setting.FileName);
 		Baker.SetSampleTimes(Setting.SampleTimes);
-		Baker.Prepare();
+		Baker.Prepare(Setting.Height, Setting.Width, TextureDatas);
 
-		QuestList.push_back(TextureData(0, Height, Width, nullptr));
+		QuestList.push_back(TextureData(0, Setting.Height, Setting.Width, nullptr));
 	}
 	
 	
@@ -372,8 +362,9 @@ void ThreadProcesser::InternelDoRequest()
 		{
 			Progress = 1.0;
 		}
-		if (Baker.IsCompleted())
+		if (Baker.BakeCompleted())
 		{
+			if (Baker.)
 			{
 				LockGuard<WindowsCriticalSection> Lock(CriticalSection);
 				TextureData NewData = TextureData(0, QuestList[0].Height, QuestList[0].Width, nullptr);

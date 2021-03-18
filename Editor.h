@@ -250,9 +250,9 @@ typedef std::vector<TextureboxItem>::iterator ItemIter;
 public:
     std::vector<TextureboxItem> TextureboxList;
 
-    int SampleTimes = 500;
-    int BlurSize = 4;
-    char OutputFileNameText[FILE_NAME_SIZE] = "facial_map_output.png";
+    int SampleTimes = 2000;
+    int BlurSize = 2;
+    char OutputFileNameText[FILE_NAME_SIZE] = "map_output.png";
     char TextureboxStateText[TEXTUREBOX_STATE_TEXT_SIZE] = "";
     char GenerateHintText[HINT_TEXT_SIZE] = "";
     char ProgressHintText[HINT_TEXT_SIZE] = "";
@@ -270,6 +270,7 @@ private:
 
     bool PreviewDirty = false;
     bool Generated = false;
+    bool Baked = false;
 
 public:
     void SetEngineDevice(EngineDevice* device) { Device = device; }
@@ -293,6 +294,11 @@ public:
         for (it = TextureboxList.begin(); it != TextureboxList.end(); it++)
         {
             UnLoadTextureData(it);
+        }
+
+        if (TestImage != nullptr) {
+            TestImage->Release();
+            TestImage = nullptr;
         }
     }
 

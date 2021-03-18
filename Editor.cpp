@@ -193,12 +193,12 @@ void RenderEditorUI(Editor& UIEditor)
         ImGui::SameLine(20.0, 10.0);
         ImGui::InputInt("Sample Times ", &UIEditor.SampleTimes);
         ImGui::SameLine(0.0, 0.0);
-        ShowHelpMarker("The higher the slower, typicallly set to 500");
+        ShowHelpMarker("The sample times of every source textures, the higher the slower, typicallly set to 2000 for 1024 size\nDO NOT set too high, it will not get a better result");
         ImGui::Text("");
         ImGui::SameLine(20.0, 10.0);
         ImGui::InputInt("Blur Size ", &UIEditor.BlurSize, 1, 100);
         ImGui::SameLine(0.0, 0.0);
-        ShowHelpMarker("The higher the slower, typicallly set to 4");
+        ShowHelpMarker("How smooth of the final baked result, the higher the slower, and more imprecise from the original textures, typicallly set to 2");
         ImGui::Text("");
         ImGui::SameLine(20.0, 10.0);
         ImGui::InputText("Output File Name", UIEditor.OutputFileNameText, FILE_NAME_SIZE, ImGuiInputTextFlags_CharsNoBlank);
@@ -493,8 +493,9 @@ void Editor::OnGenerateButtonClicked()
             snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
             PreviewRenderer.ClearTexture();
             PreviewDirty = true;
+            Generated = false;
         }
-        Generated = false;
+        
     }
 }
 
@@ -510,6 +511,12 @@ void Editor::OnBakeButtonClicked()
         return;
     }
     snprintf(BakeHintText, HINT_TEXT_SIZE, "");
+    
+    if (TestImage != nullptr)
+    {
+        TestImage->Release();
+        TestImage = nullptr;
+    }
 
     BakeSettting Setting;
     Setting.SampleTimes = SampleTimes >= 0 ? SampleTimes : 1;
@@ -526,15 +533,16 @@ void Editor::OnBakeButtonClicked()
         Setting.FileName += ".png";
     }
 
-    std::vector<TextureData> Textures;
+    Setting.Height = TextureboxList[0].Height;
+    Setting.Width = TextureboxList[0].Width;
+
+    std::vector<unsigned char*> Textures;
     for (size_t i = 0; i < TextureboxList.size(); i++)
     {
-        TextureData NewData = TextureData(i, TextureboxList[i].Height, TextureboxList[i].Width, nullptr);
-        NewData.SDFData = TextureboxList[i].SDFData;
-        Textures.push_back(NewData);
+        Textures.push_back(TextureboxList[i].SDFData);
     }
 
-    std::pair< BakeSettting, std::vector<TextureData>> Data;
+    std::pair< BakeSettting, std::vector<unsigned char*>> Data;
     Data.first = Setting;
     Data.second = Textures;
 
@@ -546,6 +554,7 @@ void Editor::OnBakeButtonClicked()
     else
     {
         snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
+        Baked = false;
     }
     
 }
@@ -609,8 +618,6 @@ double Editor::GetProgress()
     }
     else if (AsyncProcesser->GetQuestType() == RequestType::Bake)
     {
-        if (Progress >= 1.0)
-        {
             if (Result.Index != -1)
             {
                 EngineTextureID* Texture = nullptr;
@@ -618,15 +625,19 @@ double Editor::GetProgress()
                     std::cerr << "Create Test image error " << Progress << std::endl;
                 }
                 TestImage = Texture;
+
+                Baked = true;
             }
-           
-            snprintf(ProgressHintText, HINT_TEXT_SIZE, "Done");
-        }
-        else
-        {
-            snprintf(ProgressHintText, HINT_TEXT_SIZE, "Baking");
-            std::cout << "Current progress: " << Progress << std::endl;
-        }
+            
+            if (Progress >= 1.0f && Baked)
+            {
+                snprintf(ProgressHintText, HINT_TEXT_SIZE, "Done");
+            }
+            else
+            {
+                snprintf(ProgressHintText, HINT_TEXT_SIZE, "Baking");
+                //std::cout << "Current progress: " << Progress << std::endl;
+            }
     }
     else
     {

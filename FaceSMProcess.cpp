@@ -233,7 +233,7 @@ void SDFGenerator::Run(int width, int height, unsigned char* image, unsigned cha
 }
 
 
-float Lerp(float a, float b, float t)
+double Lerp(double a, double b, double t)
 {
     /*
     float v = t > 1.0f ? 1.0f : t;
@@ -243,30 +243,32 @@ float Lerp(float a, float b, float t)
 }
 
 
-void ImageBaker::Prepare()
+void ImageBaker::Prepare(int Height, int Width, std::vector<unsigned char*>& Sources)
 {
     Completed = true;
-    if (SourceList.size() < 2) return;
-    if (OutputImage != nullptr)
+    if (Sources.size() < 2) return;
+
+    Cleanup();
+
+    for (unsigned char* data : Sources)
     {
-        free(OutputImage);
+        SourceList.push_back((PackData*)data);
     }
+    
+    ImageHeight = Height;
+    ImageWidth = Width;
+    ImageSize = Height * Width;
     OutputImage = (PackData*)malloc(ImageSize * sizeof(PackData));
-    //memset(OutputImage, 0, ImageSize * sizeof(PackData));
+    memset(OutputImage, 0, ImageSize * sizeof(PackData));
    
-
-
-    ProgressPerStep = (SAMPLE_STEP / ((double)ImageSize * (double)SampleTimes * (SourceList.size() - 1)));//5% for write image 
-
-    CurrentSourcePos = 0;
-    CurrentPixelPos = 0;
-    CurrentColorValue = 0.0f;
-    CurrentSampleTimes = 0;
+    //ProgressPerSampleTimes = (1 / ((double)ImageSize * (double)SampleTimes * (SourceList.size() - 1)));
+    ProgressPerStep = (1 / ((double)ImageSize * (SourceList.size() - 1)));
 
     std::cout << "Prepare to bake:" << std::endl;
     std::cout << "FileName : " << OutputFileName << std::endl;
     std::cout << "SampleTimes : " << SampleTimes << std::endl;
     std::cout << "ProgressPerStep : " << ProgressPerStep << std::endl;
+    //std::cout << "ProgressPerSampleTimes : " << ProgressPerSampleTimes << std::endl;
     
     Completed = false;
 }
@@ -282,42 +284,49 @@ double ImageBaker::RunStep()
     PackData* SourceTexture1 = SourceList[CurrentSourcePos+1];
 
     bool Skip = false;
-    double Progress = ProgressPerStep;
-    /*
-    // Directly return if this two situation is true, we do not need to loop because the result is same as below
-    if (SourceTexture0[CurrentPixelPos] < 127 && SourceTexture1[CurrentPixelPos] < 127)
+    double Progress = 0.0;
+    
+    double s0 = SourceTexture0[CurrentPixelPos].r;
+    double s1 = SourceTexture1[CurrentPixelPos].r;
+
+    // Directly return if this two situation is true, we do not need to loop because the result is same as the loop below 
+    if (s0 < 125 && s1 < 125)
     {
-        OutputImage[CurrentPixelPos] += 255;
+        OutputImage[CurrentPixelPos].r += 0;
+        OutputImage[CurrentPixelPos].g += 0;
+        OutputImage[CurrentPixelPos].b += 0;
+        OutputImage[CurrentPixelPos].a = 255;
         CurrentPixelPos += 1;
-        CurrentColorValue = 0.0f;
+        CurrentColorValue = 0.0;
         CurrentSampleTimes = 0;
         Skip = true;
-        Progress = Progress * SampleTimes;
+        Progress = ProgressPerStep;
     }
-    else if (SourceTexture0[CurrentPixelPos] > 128 && SourceTexture1[CurrentPixelPos] > 128)
+    else if (s0 > 132 && s1 > 132)
     {
-        OutputImage[CurrentPixelPos] += 0;
+        unsigned char Color = unsigned char(CalculateFinalColor(1) * 255.0);
+        OutputImage[CurrentPixelPos].r += Color;
+        OutputImage[CurrentPixelPos].g += Color;
+        OutputImage[CurrentPixelPos].b += Color;
+        OutputImage[CurrentPixelPos].a = 255;
         CurrentPixelPos += 1;
-        CurrentColorValue = 0.0f;
+        CurrentColorValue = 0.0;
         CurrentSampleTimes = 0;
         Skip = true;
-        Progress = Progress * SampleTimes;
-    }*/
+        Progress = ProgressPerStep;
+    }
     
     if (!Skip) {
-        double s0 = SourceTexture0[CurrentPixelPos].g;
-        double s1 = SourceTexture1[CurrentPixelPos].g;
 
         double Color0 = s0 / 255.0;
         double Color1 = s1 / 255.0;
 
-
         for (int i = 0; i < SAMPLE_STEP; i++)
         {
             double Value = CurrentSampleTimes / SampleTimes;
-            CurrentColorValue += Lerp(Color0, Color1, Value) < 0.49999f ? 0.0f : 1.0f;
-            //CurrentColorValue += Color1;
+            CurrentColorValue += Lerp(Color0, Color1, Value) < 0.49999 ? 0.0 : 1.0;
             CurrentSampleTimes++;
+            //Progress += ProgressPerSampleTimes;
             if (CurrentSampleTimes >= SampleTimes)
                 break;
         }
@@ -325,16 +334,16 @@ double ImageBaker::RunStep()
         // A sample loop is finished, should move to next pixel
         if (CurrentSampleTimes >= SampleTimes) {
             CurrentColorValue = CurrentColorValue / (double)SampleTimes;
-            unsigned char OutColor =  unsigned char(CurrentColorValue * 255.0);
-            //OutColor =(unsigned char)pow(double(OutColor), 2.2);
-            OutputImage[CurrentPixelPos].r = OutColor;
-            OutputImage[CurrentPixelPos].g= OutColor;
-            OutputImage[CurrentPixelPos].b = OutColor;
+            unsigned char OutColor =  unsigned char(CalculateFinalColor(CurrentColorValue) * 255.0);
+            OutputImage[CurrentPixelPos].r += OutColor;
+            OutputImage[CurrentPixelPos].g += OutColor;
+            OutputImage[CurrentPixelPos].b += OutColor;
             OutputImage[CurrentPixelPos].a = 255;
 
             CurrentPixelPos += 1;
-            CurrentColorValue = 0.0f;
+            CurrentColorValue = 0.0;
             CurrentSampleTimes = 0;
+            Progress = ProgressPerStep;
             //std::cout << "Switch to next pixel: " << CurrentPixelPos << std::endl;
         }
     }
@@ -342,9 +351,11 @@ double ImageBaker::RunStep()
     // All pxiel of two sample texture is done, should move to next texture
     if (CurrentPixelPos >= ImageSize)
     {
-        CurrentSourcePos += 1;
-        std::cout << "Switch to next 2 texture: " << CurrentSourcePos << " | " << CurrentSourcePos  + 1<< std::endl;
+        std::cout << "Switch to next 2 texture: " << CurrentSourcePos  << " | " << CurrentSourcePos + 1 << std::endl;
         std::cout << "Current pixel: " << CurrentPixelPos << std::endl;
+
+        CurrentSourcePos += 1;
+        CurrentPixelPos = 0;
         if ((CurrentSourcePos+1) >= (int)SourceList.size()) {
             //Done, wait for output
             Completed = true;
@@ -356,15 +367,39 @@ double ImageBaker::RunStep()
 }
 
 
-float ImageBaker::WriteImage()
+double ImageBaker::WriteImage()
 {
     if (stbi_write_png(OutputFileName.c_str(), ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, ImageWidth * 4) == 0)
         std::cerr << "Write image failed: "<< OutputFileName.c_str() << std::endl;
-    stbi_write_jpg("Test5.jpg", ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, 100);
+    //stbi_write_jpg("Test5.jpg", ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, 100);
 
     std::cout << "Output image finished :" << OutputFileName.c_str() << std::endl;
     ImageWrote = true;
     //Cleanup();
 
     return 0.0;
+}
+
+
+
+double ImageBaker::CalculateFinalColor(double Color)
+{
+    int NumLayers = (int)SourceList.size()-1;
+
+    if (NumLayers >= 2) {
+        /*
+        double Range = 1.0 / double(NumLayers) + 0.000001;
+
+        double StartRange = CurrentSourcePos * Range;
+        double EndRange = StartRange + Range;
+        EndRange = EndRange > 1.0 ? 1.0 : EndRange;
+
+        return (Color - StartRange) / (EndRange - StartRange);
+        */
+        return Color / double(NumLayers);
+    }
+    else
+    {
+        return Color;
+    }
 }
