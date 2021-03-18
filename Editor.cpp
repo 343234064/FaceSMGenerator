@@ -520,6 +520,7 @@ void Editor::OnBakeButtonClicked()
 
     BakeSettting Setting;
     Setting.SampleTimes = SampleTimes >= 0 ? SampleTimes : 1;
+    Setting.BlurSize = BlurSize;
     Setting.FileName = OutputFileNameText;
 
     if (Setting.FileName.size() == 0)
@@ -535,6 +536,7 @@ void Editor::OnBakeButtonClicked()
 
     Setting.Height = TextureboxList[0].Height;
     Setting.Width = TextureboxList[0].Width;
+    
 
     std::vector<unsigned char*> Textures;
     for (size_t i = 0; i < TextureboxList.size(); i++)

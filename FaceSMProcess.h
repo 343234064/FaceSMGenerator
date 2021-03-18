@@ -6,13 +6,15 @@
 struct BakeSettting
 {
 public:
-    BakeSettting(int SampleNum = 0, int Height = 0, int Width = 0) :
+    BakeSettting(int SampleNum = 0, int Blur = 0, int Height = 0, int Width = 0) :
         SampleTimes(SampleNum),
+        BlurSize(0),
         Height(0),
         Width(0)
     {}
     std::string FileName;
     int SampleTimes;
+    int BlurSize;
     int Height;
     int Width;
 };
@@ -128,18 +130,23 @@ class ImageBaker
 
 public:
     ImageBaker ():
-        OutputImage(nullptr),
+        BakedImage(nullptr),
+        BlurredImage(nullptr),
         OutputFileName("face_map_output.png"),
-        SampleTimes(0),
+        SampleTimes(500),
+        BlurSize(2),
         ImageHeight(0),
         ImageWidth(0),
         ImageSize(0),
-        ProgressPerStep(0),
+        ProgressPerBakeStep(0),
+        ProgressPerBlurStep(0),
         //ProgressPerSampleTimes(0),
-        Completed(true),
+        BakeCompleted(true),
+        BlurCompleted(true),
         ImageWrote(true),
         CurrentSourcePos(0),
         CurrentPixelPos(0),
+        CurrentBlurRow(-1),
         CurrentSampleTimes(0),
         CurrentColorValue(0)
     {}
@@ -149,25 +156,37 @@ public:
     }
 
     void SetSampleTimes(int SampleNum) { SampleTimes = SampleNum; }
+    void SetBlurSize(int Blur) { BlurSize = Blur; }
     void SetOutputFileName(std::string& FileName) { OutputFileName = FileName; }
-    bool IsCompleted() { return Completed && ImageWrote; }
+    bool IsBakeCompleted() { return BakeCompleted; }
+    bool IsBlurCompleted() { return BlurCompleted; }
+    bool IsWriteCompleted() { return ImageWrote; }
+    bool IsAllCompleted() { return BakeCompleted && BlurCompleted && ImageWrote; }
 
     void Prepare(int Height, int Width, std::vector<unsigned char*>& Sources);
-    double RunStep();
+    double RunBakeStep();
+    double RunBlurStep();
+    double RunWriteStep();
     
     void Cleanup()
     {
-        if (OutputImage != nullptr) {
-            free(OutputImage);
-            OutputImage = nullptr;
+        if (BakedImage != nullptr) {
+            free(BakedImage);
+            BakedImage = nullptr;
+        }
+        if (BlurredImage != nullptr) {
+            free(BlurredImage);
+            BlurredImage = nullptr;
         }
         SourceList.clear();
         CurrentSourcePos = 0;
         CurrentPixelPos = 0;
+        CurrentBlurRow = -1;
         CurrentSampleTimes = 0;
         CurrentColorValue = 0;
 
-        ProgressPerStep = 0;
+        ProgressPerBakeStep = 0;
+        ProgressPerBlurStep = 0;
         //ProgressPerSampleTimes = 0;
 
         ImageHeight = 0;
@@ -175,32 +194,37 @@ public:
         ImageSize = 0;
     }
 
-    PackData* GetOutputImage() { return OutputImage; }
+    PackData* GetOutputImage() { return BlurredImage; }
 
 private:
-    double WriteImage();
     double CalculateFinalColor(double Color);
 
 private:
-    PackData* OutputImage;
+    PackData* BakedImage; 
+    PackData* BlurredImage; 
+
     std::vector<PackData*> SourceList;
     
     std::string OutputFileName;
     int SampleTimes;
+    int BlurSize;
 
     int ImageHeight;
     int ImageWidth;
     int ImageSize;
 
-    double ProgressPerStep;
+    double ProgressPerBakeStep;
+    double ProgressPerBlurStep;
     //double ProgressPerSampleTimes;
 
     /*Running states*/
-    bool Completed;
+    bool BakeCompleted;
+    bool BlurCompleted;
     bool ImageWrote;
 
     int CurrentSourcePos;
     int CurrentPixelPos;
+    int CurrentBlurRow;
     double CurrentSampleTimes;
     double CurrentColorValue;
 

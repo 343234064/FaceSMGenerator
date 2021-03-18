@@ -271,6 +271,7 @@ bool ThreadProcesser::Kick(RequestType Type, void* Data)
 
 		Baker.SetOutputFileName(Setting.FileName);
 		Baker.SetSampleTimes(Setting.SampleTimes);
+		Baker.SetBlurSize(Setting.BlurSize);
 		Baker.Prepare(Setting.Height, Setting.Width, TextureDatas);
 
 		QuestList.push_back(TextureData(0, Setting.Height, Setting.Width, nullptr));
@@ -356,23 +357,33 @@ void ThreadProcesser::InternelDoRequest()
 	// Do Bake
 	else if (Request == RequestType::Bake)
 	{
-		Progress += Baker.RunStep();
+		if (!Baker.IsBakeCompleted())
+			Progress += Baker.RunBakeStep();
+		else if (!Baker.IsBlurCompleted())
+			Progress += Baker.RunBlurStep();
+		else if (!Baker.IsWriteCompleted())
+			Progress += Baker.RunWriteStep();
 		
 		if (Progress >= 0.99998)
 		{
 			Progress = 1.0;
 		}
-		if (Baker.BakeCompleted())
+		if (Baker.IsBakeCompleted())
 		{
-			if (Baker.)
-			{
-				LockGuard<WindowsCriticalSection> Lock(CriticalSection);
-				TextureData NewData = TextureData(0, QuestList[0].Height, QuestList[0].Width, nullptr);
-				NewData.SDFData = (unsigned char*)Baker.GetOutputImage();
-				ResultList.push_back(NewData);
+			if (Progress >= 1.0 && !Baker.IsBlurCompleted()) {
+				std::cout << "Blurring final result... " << std::endl;
+				Progress = 0.0;
 			}
-			WorkingCounter.Decrement();
-			std::cout << "All Done" << std::endl;
+			if (Baker.IsAllCompleted()) {
+				{
+					LockGuard<WindowsCriticalSection> Lock(CriticalSection);
+					TextureData NewData = TextureData(0, QuestList[0].Height, QuestList[0].Width, nullptr);
+					NewData.SDFData = (unsigned char*)Baker.GetOutputImage();
+					ResultList.push_back(NewData);
+				}
+				WorkingCounter.Decrement();
+				std::cout << "All Done" << std::endl;
+			}
 		}
 
 	}

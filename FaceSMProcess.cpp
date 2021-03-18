@@ -245,7 +245,9 @@ double Lerp(double a, double b, double t)
 
 void ImageBaker::Prepare(int Height, int Width, std::vector<unsigned char*>& Sources)
 {
-    Completed = true;
+    BakeCompleted = true;
+    BlurCompleted = true;
+    ImageWrote = true;
     if (Sources.size() < 2) return;
 
     Cleanup();
@@ -258,28 +260,32 @@ void ImageBaker::Prepare(int Height, int Width, std::vector<unsigned char*>& Sou
     ImageHeight = Height;
     ImageWidth = Width;
     ImageSize = Height * Width;
-    OutputImage = (PackData*)malloc(ImageSize * sizeof(PackData));
-    memset(OutputImage, 0, ImageSize * sizeof(PackData));
+    BakedImage = (PackData*)malloc(ImageSize * sizeof(PackData));
+    memset(BakedImage, 0, ImageSize * sizeof(PackData));
    
     //ProgressPerSampleTimes = (1 / ((double)ImageSize * (double)SampleTimes * (SourceList.size() - 1)));
-    ProgressPerStep = (1 / ((double)ImageSize * (SourceList.size() - 1)));
+    ProgressPerBakeStep = (1 / ((double)ImageSize * (SourceList.size() - 1)));
+    ProgressPerBlurStep = 1 / (double)ImageSize;
 
     std::cout << "Prepare to bake:" << std::endl;
     std::cout << "FileName : " << OutputFileName << std::endl;
     std::cout << "SampleTimes : " << SampleTimes << std::endl;
-    std::cout << "ProgressPerStep : " << ProgressPerStep << std::endl;
+    std::cout << "ProgressPerBakeStep : " << ProgressPerBakeStep << std::endl;
+    std::cout << "ProgressPerBlurStep : " << ProgressPerBlurStep << std::endl;
     //std::cout << "ProgressPerSampleTimes : " << ProgressPerSampleTimes << std::endl;
     
-    Completed = false;
+    BakeCompleted = false;
+    BlurCompleted = false;
+    ImageWrote = false;
 }
 
 
-double ImageBaker::RunStep()
+double ImageBaker::RunBakeStep()
 {
-    if (Completed) {
-        if (!ImageWrote) return WriteImage();
-        return 1.0;
+    if (BakeCompleted) {
+        return 0.0;
     }
+
     PackData* SourceTexture0 = SourceList[CurrentSourcePos];
     PackData* SourceTexture1 = SourceList[CurrentSourcePos+1];
 
@@ -292,28 +298,28 @@ double ImageBaker::RunStep()
     // Directly return if this two situation is true, we do not need to loop because the result is same as the loop below 
     if (s0 < 125 && s1 < 125)
     {
-        OutputImage[CurrentPixelPos].r += 0;
-        OutputImage[CurrentPixelPos].g += 0;
-        OutputImage[CurrentPixelPos].b += 0;
-        OutputImage[CurrentPixelPos].a = 255;
+        BakedImage[CurrentPixelPos].r += 0;
+        BakedImage[CurrentPixelPos].g += 0;
+        BakedImage[CurrentPixelPos].b += 0;
+        BakedImage[CurrentPixelPos].a = 255;
         CurrentPixelPos += 1;
         CurrentColorValue = 0.0;
         CurrentSampleTimes = 0;
         Skip = true;
-        Progress = ProgressPerStep;
+        Progress = ProgressPerBakeStep;
     }
     else if (s0 > 132 && s1 > 132)
     {
         unsigned char Color = unsigned char(CalculateFinalColor(1) * 255.0);
-        OutputImage[CurrentPixelPos].r += Color;
-        OutputImage[CurrentPixelPos].g += Color;
-        OutputImage[CurrentPixelPos].b += Color;
-        OutputImage[CurrentPixelPos].a = 255;
+        BakedImage[CurrentPixelPos].r += Color;
+        BakedImage[CurrentPixelPos].g += Color;
+        BakedImage[CurrentPixelPos].b += Color;
+        BakedImage[CurrentPixelPos].a = 255;
         CurrentPixelPos += 1;
         CurrentColorValue = 0.0;
         CurrentSampleTimes = 0;
         Skip = true;
-        Progress = ProgressPerStep;
+        Progress = ProgressPerBakeStep;
     }
     
     if (!Skip) {
@@ -335,15 +341,15 @@ double ImageBaker::RunStep()
         if (CurrentSampleTimes >= SampleTimes) {
             CurrentColorValue = CurrentColorValue / (double)SampleTimes;
             unsigned char OutColor =  unsigned char(CalculateFinalColor(CurrentColorValue) * 255.0);
-            OutputImage[CurrentPixelPos].r += OutColor;
-            OutputImage[CurrentPixelPos].g += OutColor;
-            OutputImage[CurrentPixelPos].b += OutColor;
-            OutputImage[CurrentPixelPos].a = 255;
+            BakedImage[CurrentPixelPos].r += OutColor;
+            BakedImage[CurrentPixelPos].g += OutColor;
+            BakedImage[CurrentPixelPos].b += OutColor;
+            BakedImage[CurrentPixelPos].a = 255;
 
             CurrentPixelPos += 1;
             CurrentColorValue = 0.0;
             CurrentSampleTimes = 0;
-            Progress = ProgressPerStep;
+            Progress = ProgressPerBakeStep;
             //std::cout << "Switch to next pixel: " << CurrentPixelPos << std::endl;
         }
     }
@@ -357,9 +363,15 @@ double ImageBaker::RunStep()
         CurrentSourcePos += 1;
         CurrentPixelPos = 0;
         if ((CurrentSourcePos+1) >= (int)SourceList.size()) {
-            //Done, wait for output
-            Completed = true;
+            //Done, wait for blur and output
+            BakeCompleted = true;
+            BlurCompleted = false;
             ImageWrote = false;
+
+            if (BlurredImage == nullptr)
+            {
+                BlurredImage = (PackData*)malloc(ImageSize * sizeof(PackData));
+            }
         }
     }
 
@@ -367,9 +379,96 @@ double ImageBaker::RunStep()
 }
 
 
-double ImageBaker::WriteImage()
+#define ROW_WEIGHT 0.15
+#define COL_WEIGHT 0.15
+
+double ImageBaker::RunBlurStep()
 {
-    if (stbi_write_png(OutputFileName.c_str(), ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, ImageWidth * 4) == 0)
+    if (BlurCompleted) {
+        return 0.0;
+    }
+
+
+    BlurredImage[CurrentPixelPos].r = BakedImage[CurrentPixelPos].r;
+    BlurredImage[CurrentPixelPos].g = BakedImage[CurrentPixelPos].g;
+    BlurredImage[CurrentPixelPos].b = BakedImage[CurrentPixelPos].b;
+    BlurredImage[CurrentPixelPos].a = 255;
+    CurrentPixelPos += 1;
+   
+    if (CurrentPixelPos >= CurrentBlurRow * ImageWidth)
+        CurrentBlurRow += 1;
+
+    if (CurrentPixelPos >= ImageSize)
+    {
+        BlurCompleted = true;
+    }
+
+    return ProgressPerBlurStep;
+    /*
+    if (BakedImage[CurrentPixelPos].r == 0 || BakedImage[CurrentPixelPos].r == 255)
+    {
+        BlurredImage[CurrentPixelPos].r = BakedImage[CurrentPixelPos].r;
+        BlurredImage[CurrentPixelPos].g = BakedImage[CurrentPixelPos].g;
+        BlurredImage[CurrentPixelPos].b = BakedImage[CurrentPixelPos].b;
+        BlurredImage[CurrentPixelPos].a = 255;
+        CurrentPixelPos += 1;
+        return ProgressPerBlurStep;
+    }
+    double CurrentPixel = BakedImage[CurrentPixelPos].r / 255;
+
+    int OffsetL, OffsetR, OffsetT, OffsetB;
+    int OffsetLT, OffsetRT, OffsetLB, OffsetRB;
+
+    int CurrentRowPos = CurrentBlurRow * ImageWidth;
+
+    double Sample = CurrentPixel * (1.0 - 2 * ROW_WEIGHT - 2 * COL_WEIGHT);
+    double RowWeight = (ROW_WEIGHT / BlurSize);
+    double ColWeight = (COL_WEIGHT / BlurSize);
+    for (int i = 1; i <= BlurSize; i++)
+    {
+        // left
+        OffsetL = CurrentPixelPos - i;
+        if (OffsetL >= CurrentRowPos) {
+            Sample += (BakedImage[OffsetL].r / 255) * RowWeight;
+        }
+        // right 
+        OffsetR = CurrentPixelPos + i;
+        if (OffsetR < (CurrentRowPos+ImageWidth)) {
+            Sample += (BakedImage[OffsetR].r / 255) * RowWeight;
+        }
+        // top
+        OffsetT = CurrentPixelPos - i*ImageWidth;
+        if (OffsetT >= 0) {
+            Sample += (BakedImage[OffsetT].r / 255) * ColWeight;
+        }
+        // bottom
+        OffsetB = CurrentPixelPos + i * ImageWidth;
+        if (OffsetB < ImageSize) {
+            Sample += (BakedImage[OffsetB].r / 255) * ColWeight;
+        }
+    }
+
+    unsigned char Color = unsigned char(Sample * 255.0);
+    BlurredImage[CurrentPixelPos].r = Color;
+    BlurredImage[CurrentPixelPos].g = Color;
+    BlurredImage[CurrentPixelPos].b = Color;
+    BlurredImage[CurrentPixelPos].a = 255;
+
+   
+    CurrentPixelPos += 1;
+    */
+    
+    return ProgressPerBlurStep;
+}
+
+
+double ImageBaker::RunWriteStep()
+{
+    if (ImageWrote) {
+        return 0.0;
+    }
+
+    if (stbi_write_png(OutputFileName.c_str(), ImageWidth, ImageHeight, 4, (unsigned char*)BlurredImage, ImageWidth * 4) == 0)
         std::cerr << "Write image failed: "<< OutputFileName.c_str() << std::endl;
     //stbi_write_jpg("Test5.jpg", ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, 100);
 
