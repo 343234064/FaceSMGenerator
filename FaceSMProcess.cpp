@@ -495,7 +495,7 @@ double ImageBaker::CalculateFinalColor(double Color)
 
         return (Color - StartRange) / (EndRange - StartRange);
         */
-        return Color / double(NumLayers);
+        return Color / double(NumLayers) + 0.001;
     }
     else
     {
