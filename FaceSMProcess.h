@@ -134,7 +134,7 @@ public:
         BlurredImage(nullptr),
         OutputFileName("face_map_output.png"),
         SampleTimes(500),
-        BlurSize(2),
+        BlurSize(1),
         ImageHeight(0),
         ImageWidth(0),
         ImageSize(0),
@@ -146,9 +146,10 @@ public:
         ImageWrote(true),
         CurrentSourcePos(0),
         CurrentPixelPos(0),
-        CurrentBlurRow(-1),
+        CurrentBlurRow(0),
         CurrentSampleTimes(0),
-        CurrentColorValue(0)
+        CurrentColorValue(0),
+        BlurHorizontal(true)
     {}
     ~ImageBaker()
     {
@@ -181,7 +182,7 @@ public:
         SourceList.clear();
         CurrentSourcePos = 0;
         CurrentPixelPos = 0;
-        CurrentBlurRow = -1;
+        CurrentBlurRow = 0;
         CurrentSampleTimes = 0;
         CurrentColorValue = 0;
 
@@ -192,9 +193,11 @@ public:
         ImageHeight = 0;
         ImageWidth = 0;
         ImageSize = 0;
+
+        BlurHorizontal = true;
     }
 
-    PackData* GetOutputImage() { return BlurredImage; }
+    PackData* GetOutputImage() { return BakedImage; }
 
 private:
     double CalculateFinalColor(double Color);
@@ -224,8 +227,10 @@ private:
 
     int CurrentSourcePos;
     int CurrentPixelPos;
-    int CurrentBlurRow;
     double CurrentSampleTimes;
     double CurrentColorValue;
+
+    int CurrentBlurRow;
+    bool BlurHorizontal;
 
 };

@@ -120,7 +120,7 @@ void RenderEditorUI(Editor& UIEditor)
         ImGui::Separator();
 
         ImGui::Text("");
-        ImGui::BulletText("1st Step:Add shadow map to the texture box below in the order in which the face shadow changes");
+        ImGui::BulletText("1st Step:Add each procedural map to the texture box below in the order in which the map changes");
         if (ImGui::TreeNodeEx("Texture box  **DO NOT has Chinese characters in file path**", ImGuiTreeNodeFlags_DefaultOpen))
         {
             ImGui::Text(UIEditor.TextureboxStateText);
@@ -172,7 +172,7 @@ void RenderEditorUI(Editor& UIEditor)
 
         ImGui::Separator();
         ImGui::Text("");
-        ImGui::BulletText("2nd Step:Press generate button to generate preview facial shadow\nYou can slide the slider in the preivew window to preview the change of the shadow");
+        ImGui::BulletText("2nd Step:Press generate button to generate preview the procedural changes\nYou can slide the slider in the preivew window to preview the changing");
 
         ImGui::Text("");
         ImGui::Text("");
@@ -186,7 +186,7 @@ void RenderEditorUI(Editor& UIEditor)
 
         ImGui::Separator();
         ImGui::Text("");
-        ImGui::BulletText("3rd Step:Press bake button to bake the final facial shadow map\nYou may adjust the parameters below as you need before you bake the final map");
+        ImGui::BulletText("3rd Step:Press bake button to bake the final map\nYou may adjust the parameters below as you need before you bake the final map");
 
         ImGui::Text("");
         ImGui::Text("");
@@ -198,7 +198,7 @@ void RenderEditorUI(Editor& UIEditor)
         ImGui::SameLine(20.0, 10.0);
         ImGui::InputInt("Blur Size ", &UIEditor.BlurSize, 1, 100);
         ImGui::SameLine(0.0, 0.0);
-        ShowHelpMarker("How smooth of the final baked result, the higher the slower, and more imprecise from the original textures, typicallly set to 2");
+        ShowHelpMarker("How smooth of the final baked result, the higher the slower, and more imprecise from the original textures, basicallly set to 1.\nSet to 0 if don't want any blur");
         ImGui::Text("");
         ImGui::SameLine(20.0, 10.0);
         ImGui::InputText("Output File Name", UIEditor.OutputFileNameText, FILE_NAME_SIZE, ImGuiInputTextFlags_CharsNoBlank);
@@ -278,12 +278,12 @@ void RenderEditorUI(Editor& UIEditor)
         ImGui::End();
     }
 
-    // for test
+    if(UIEditor.ResultImage != nullptr)
     {
 
-        ImGui::Begin("Test", NULL, ImGuiWindowFlags_NoResize);
+        ImGui::Begin("Result", NULL, ImGuiWindowFlags_NoResize);
         ImGui::SetWindowSize(ImVec2(300, 300));
-        ImGui::Image((void*)UIEditor.TestImage, ImVec2(PREVIEW_TEXTURE_SIZE, PREVIEW_TEXTURE_SIZE));
+        ImGui::Image((void*)UIEditor.ResultImage, ImVec2(PREVIEW_TEXTURE_SIZE, PREVIEW_TEXTURE_SIZE));
         ImGui::End();
     }
 }
@@ -424,8 +424,36 @@ void Editor::OnDeleteAllButtonClicked()
 
 void Editor::OnReloadSelectedClicked()
 {
-    PreviewRenderer.ClearTexture();
-    Generated = false;
+    snprintf(ProgressHintText, HINT_TEXT_SIZE, "");
+    if (AsyncProcesser != nullptr)
+    {
+        if (AsyncProcesser->IsWorking())
+        {
+            snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
+            return;
+        }
+    }
+
+    bool SomethingReloaded = false;
+    int ReloadedNum = 0;
+    ItemIter it;
+    for (it = TextureboxList.begin(); it != TextureboxList.end(); it++)
+    {
+        if ((*it).Selected)
+        {
+            UnLoadTextureData(it);
+            LoadTextureData(it);
+            SomethingReloaded = true;
+            ReloadedNum++;
+        }
+    }
+
+    if (SomethingReloaded)
+    {
+        PreviewRenderer.ClearTexture();
+        Generated = false;
+        snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Reloaded", ReloadedNum);
+    }
 }
 
 
@@ -512,10 +540,10 @@ void Editor::OnBakeButtonClicked()
     }
     snprintf(BakeHintText, HINT_TEXT_SIZE, "");
     
-    if (TestImage != nullptr)
+    if (ResultImage != nullptr)
     {
-        TestImage->Release();
-        TestImage = nullptr;
+        ResultImage->Release();
+        ResultImage = nullptr;
     }
 
     BakeSettting Setting;
@@ -624,9 +652,14 @@ double Editor::GetProgress()
             {
                 EngineTextureID* Texture = nullptr;
                 if (!CreateEngineTextureResource(Device, Result.SDFData, Result.Width, Result.Height, 4, &(Texture))) {
-                    std::cerr << "Create Test image error " << Progress << std::endl;
+                    std::cerr << "Create Result image error " << Progress << std::endl;
                 }
-                TestImage = Texture;
+                if (ResultImage != nullptr)
+                {
+                    ResultImage->Release();
+                    ResultImage = nullptr;
+                }
+                ResultImage = Texture;
 
                 Baked = true;
             }

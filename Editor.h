@@ -251,7 +251,7 @@ public:
     std::vector<TextureboxItem> TextureboxList;
 
     int SampleTimes = 2000;
-    int BlurSize = 2;
+    int BlurSize = 1;
     char OutputFileNameText[FILE_NAME_SIZE] = "map_output.png";
     char TextureboxStateText[TEXTUREBOX_STATE_TEXT_SIZE] = "";
     char GenerateHintText[HINT_TEXT_SIZE] = "";
@@ -264,7 +264,7 @@ public:
 
     PreviewTextureRenderer PreviewRenderer;
     
-    EngineTextureID* TestImage = nullptr;
+    EngineTextureID* ResultImage = nullptr;
 private:
     ThreadProcesser* AsyncProcesser = nullptr;
 
@@ -296,9 +296,9 @@ public:
             UnLoadTextureData(it);
         }
 
-        if (TestImage != nullptr) {
-            TestImage->Release();
-            TestImage = nullptr;
+        if (ResultImage != nullptr) {
+            ResultImage->Release();
+            ResultImage = nullptr;
         }
     }
 

@@ -265,7 +265,7 @@ void ImageBaker::Prepare(int Height, int Width, std::vector<unsigned char*>& Sou
    
     //ProgressPerSampleTimes = (1 / ((double)ImageSize * (double)SampleTimes * (SourceList.size() - 1)));
     ProgressPerBakeStep = (1 / ((double)ImageSize * (SourceList.size() - 1)));
-    ProgressPerBlurStep = 1 / (double)ImageSize;
+    ProgressPerBlurStep = 1 / ((double)ImageSize * 2.0);
 
     std::cout << "Prepare to bake:" << std::endl;
     std::cout << "FileName : " << OutputFileName << std::endl;
@@ -379,8 +379,7 @@ double ImageBaker::RunBakeStep()
 }
 
 
-#define ROW_WEIGHT 0.15
-#define COL_WEIGHT 0.15
+
 
 double ImageBaker::RunBlurStep()
 {
@@ -388,95 +387,131 @@ double ImageBaker::RunBlurStep()
         return 0.0;
     }
 
+    if (BlurSize <= 0)
+    {
+        BlurCompleted = true;
+        return 1.0;
+    }
 
-    BlurredImage[CurrentPixelPos].r = BakedImage[CurrentPixelPos].r;
-    BlurredImage[CurrentPixelPos].g = BakedImage[CurrentPixelPos].g;
-    BlurredImage[CurrentPixelPos].b = BakedImage[CurrentPixelPos].b;
-    BlurredImage[CurrentPixelPos].a = 255;
-    CurrentPixelPos += 1;
-   
-    if (CurrentPixelPos >= CurrentBlurRow * ImageWidth)
-        CurrentBlurRow += 1;
+    //Do blur.....
+    double Sample = 0.0;
+    double k = (1.0 / (2.50662827439570 * BlurSize));
+    int BLUR_RANGE = BlurSize * 10;
+
+    if (BlurHorizontal) {
+        //Horizontal
+        PackData* SourceData = BakedImage;
+        PackData* TargetData = BlurredImage;
+
+        int RangeHorizonBegin = CurrentBlurRow * ImageWidth;
+        int RangeHorizonEnd = RangeHorizonBegin + ImageWidth;
+
+
+        for (int i = CurrentPixelPos - BLUR_RANGE; i <= CurrentPixelPos + BLUR_RANGE; i++)
+        {
+            if (i >= RangeHorizonBegin && i < RangeHorizonEnd)
+            {
+                double Dis = abs(i - CurrentPixelPos);
+                double GussianWeight = k * exp( -( (Dis* Dis) / (2.0 * BlurSize * BlurSize) ) );
+                double CurrentPixel = SourceData[i].r / 255.0;
+                Sample += CurrentPixel * GussianWeight;
+            }
+        }
+
+
+        unsigned char Color = unsigned char(Sample * 255.0);
+        TargetData[CurrentPixelPos].r = Color;
+        TargetData[CurrentPixelPos].g = Color;
+        TargetData[CurrentPixelPos].b = Color;
+        TargetData[CurrentPixelPos].a = 255;
+
+        CurrentPixelPos += 1;
+
+        if (CurrentPixelPos >= RangeHorizonEnd)
+            CurrentBlurRow += 1;
+    }
+    else {
+        //Vertical
+        PackData* SourceData = BlurredImage;
+        PackData* TargetData = BakedImage;
+
+        for (int i = 1; i <= BLUR_RANGE; i++)
+        {
+            int PrevVerticalPos = CurrentPixelPos - i * ImageWidth;
+            int NextVerticalPos = CurrentPixelPos + i * ImageWidth;
+            double CurrentPixel = 0.0;
+            double Dis = abs(i);
+            double GussianWeight = k * exp(-((Dis * Dis) / (2.0 * BlurSize * BlurSize)));
+            if (PrevVerticalPos >= 0 && PrevVerticalPos < ImageSize)
+            {
+                CurrentPixel = SourceData[PrevVerticalPos].r / 255.0;
+                Sample += CurrentPixel * GussianWeight;
+            }
+            if (NextVerticalPos >= 0 && NextVerticalPos < ImageSize)
+            {
+                CurrentPixel = SourceData[NextVerticalPos].r / 255.0;
+                Sample += CurrentPixel * GussianWeight;
+            }
+        }
+        Sample += k * (SourceData[CurrentPixelPos].r / 255.0);
+
+
+        unsigned char Color = unsigned char(Sample * 255.0);
+        TargetData[CurrentPixelPos].r = Color;
+        TargetData[CurrentPixelPos].g = Color;
+        TargetData[CurrentPixelPos].b = Color;
+        TargetData[CurrentPixelPos].a = 255;
+
+        CurrentPixelPos += 1;
+    }
+
 
     if (CurrentPixelPos >= ImageSize)
     {
-        BlurCompleted = true;
+        if (BlurHorizontal) {
+            BlurHorizontal = false;
+            CurrentPixelPos = 0;
+        }
+        else
+            BlurCompleted = true;
     }
 
     return ProgressPerBlurStep;
-    /*
-    if (BakedImage[CurrentPixelPos].r == 0 || BakedImage[CurrentPixelPos].r == 255)
+}
+
+
+bool OutputToSingleChannelPNG(PackData* Image, const char* OutputFileName, int Width, int Height)
+{
+    size_t Size = size_t(Width * Height);
+    unsigned char* OutputData = nullptr;
+    OutputData = (unsigned char*)malloc(Size * sizeof(unsigned char));
+
+    for (size_t i = 0; i < Size; i++)
     {
-        BlurredImage[CurrentPixelPos].r = BakedImage[CurrentPixelPos].r;
-        BlurredImage[CurrentPixelPos].g = BakedImage[CurrentPixelPos].g;
-        BlurredImage[CurrentPixelPos].b = BakedImage[CurrentPixelPos].b;
-        BlurredImage[CurrentPixelPos].a = 255;
-        CurrentPixelPos += 1;
-        return ProgressPerBlurStep;
-    }
-    double CurrentPixel = BakedImage[CurrentPixelPos].r / 255;
-
-    int OffsetL, OffsetR, OffsetT, OffsetB;
-    int OffsetLT, OffsetRT, OffsetLB, OffsetRB;
-
-    int CurrentRowPos = CurrentBlurRow * ImageWidth;
-
-    double Sample = CurrentPixel * (1.0 - 2 * ROW_WEIGHT - 2 * COL_WEIGHT);
-    double RowWeight = (ROW_WEIGHT / BlurSize);
-    double ColWeight = (COL_WEIGHT / BlurSize);
-    for (int i = 1; i <= BlurSize; i++)
-    {
-        // left
-        OffsetL = CurrentPixelPos - i;
-        if (OffsetL >= CurrentRowPos) {
-            Sample += (BakedImage[OffsetL].r / 255) * RowWeight;
-        }
-        // right 
-        OffsetR = CurrentPixelPos + i;
-        if (OffsetR < (CurrentRowPos+ImageWidth)) {
-            Sample += (BakedImage[OffsetR].r / 255) * RowWeight;
-        }
-        // top
-        OffsetT = CurrentPixelPos - i*ImageWidth;
-        if (OffsetT >= 0) {
-            Sample += (BakedImage[OffsetT].r / 255) * ColWeight;
-        }
-        // bottom
-        OffsetB = CurrentPixelPos + i * ImageWidth;
-        if (OffsetB < ImageSize) {
-            Sample += (BakedImage[OffsetB].r / 255) * ColWeight;
-        }
+        unsigned char Value = Image[i].r;
+        OutputData[i] = Value;
     }
 
-    unsigned char Color = unsigned char(Sample * 255.0);
-    BlurredImage[CurrentPixelPos].r = Color;
-    BlurredImage[CurrentPixelPos].g = Color;
-    BlurredImage[CurrentPixelPos].b = Color;
-    BlurredImage[CurrentPixelPos].a = 255;
-
-   
-    CurrentPixelPos += 1;
-    */
-    
-    return ProgressPerBlurStep;
+    bool Result = (stbi_write_png(OutputFileName, Width, Height, 1, OutputData, Width) != 0) ? true : false;
+    //stbi_write_jpg("Test5.jpg", ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, 100);
+    return Result;
 }
 
 
 double ImageBaker::RunWriteStep()
 {
     if (ImageWrote) {
-        return 0.0;
+        return 1.0;
     }
 
-    if (stbi_write_png(OutputFileName.c_str(), ImageWidth, ImageHeight, 4, (unsigned char*)BlurredImage, ImageWidth * 4) == 0)
+    if (OutputToSingleChannelPNG(BakedImage, OutputFileName.c_str(), ImageWidth, ImageHeight))
         std::cerr << "Write image failed: "<< OutputFileName.c_str() << std::endl;
-    //stbi_write_jpg("Test5.jpg", ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, 100);
 
     std::cout << "Output image finished :" << OutputFileName.c_str() << std::endl;
     ImageWrote = true;
     //Cleanup();
 
-    return 0.0;
+    return 1.0;
 }
 
 
