@@ -6,6 +6,29 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image\stb-master\stb_image_write.h"
 
+
+bool OutputToSingleChannelPNG(PackData* Image, const char* OutputFileName, int Width, int Height, bool FlipColor)
+{
+    size_t Size = size_t(Width * Height);
+    unsigned char* OutputData = nullptr;
+    OutputData = (unsigned char*)malloc(Size * sizeof(unsigned char));
+
+    for (size_t i = 0; i < Size; i++)
+    {
+        unsigned char Value;
+        if (FlipColor)
+            Value = 255 - Image[i].r;
+        else
+            Value = Image[i].r;
+        OutputData[i] = Value;
+    }
+
+    bool Result = (stbi_write_png(OutputFileName, Width, Height, 1, OutputData, Width) != 0) ? true : false;
+    //stbi_write_jpg("Test5.jpg", ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, 100);
+    return Result;
+}
+
+
 inline SDFGenerator::Point SDFGenerator::Get(Grid& g, int x, int y) {
     return g.points[(y + 1) * gridWidth + (x + 1)];
 }
@@ -480,22 +503,6 @@ double ImageBaker::RunBlurStep()
 }
 
 
-bool OutputToSingleChannelPNG(PackData* Image, const char* OutputFileName, int Width, int Height)
-{
-    size_t Size = size_t(Width * Height);
-    unsigned char* OutputData = nullptr;
-    OutputData = (unsigned char*)malloc(Size * sizeof(unsigned char));
-
-    for (size_t i = 0; i < Size; i++)
-    {
-        unsigned char Value = Image[i].r;
-        OutputData[i] = Value;
-    }
-
-    bool Result = (stbi_write_png(OutputFileName, Width, Height, 1, OutputData, Width) != 0) ? true : false;
-    //stbi_write_jpg("Test5.jpg", ImageWidth, ImageHeight, 4, (unsigned char*)OutputImage, 100);
-    return Result;
-}
 
 
 double ImageBaker::RunWriteStep()
@@ -504,7 +511,7 @@ double ImageBaker::RunWriteStep()
         return 1.0;
     }
 
-    if (OutputToSingleChannelPNG(BakedImage, OutputFileName.c_str(), ImageWidth, ImageHeight))
+    if (OutputToSingleChannelPNG(BakedImage, OutputFileName.c_str(), ImageWidth, ImageHeight, false))
         std::cerr << "Write image failed: "<< OutputFileName.c_str() << std::endl;
 
     std::cout << "Output image finished :" << OutputFileName.c_str() << std::endl;

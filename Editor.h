@@ -307,6 +307,7 @@ public:
     void OnDeleteAllButtonClicked();
     void OnReloadSelectedClicked();
     void OnGenerateButtonClicked();
+    void OnSDFOutputButtonClicked();
     void OnBakeButtonClicked();
     double GetProgress();
 

@@ -107,7 +107,7 @@ int main(int, char**)
     WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("ProceduralMapGernerator"), NULL };
     RegisterClassEx(&wc);
     DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_MINIMIZEBOX | WS_TABSTOP | WS_SYSMENU;
-    HWND hwnd = CreateWindow(wc.lpszClassName, _T("Procedural Map Gernerator -ver 1.1  -by XJL"), style, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
+    HWND hwnd = CreateWindow(wc.lpszClassName, _T("Procedural Map Gernerator -ver 1.5  -by XJL"), style, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
 
     // Initialize Direct3D
     if (CreateDeviceD3D(hwnd) < 0)

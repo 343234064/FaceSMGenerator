@@ -59,6 +59,13 @@ public:
     }
 };
 
+
+
+bool OutputToSingleChannelPNG(PackData* Image, const char* OutputFileName, int Width, int Height, bool FlipColor = false);
+
+
+
+
 ////////////////////////////////////////////////
 //8ssedt optimized
 //https://www.jianshu.com/p/58271568781d

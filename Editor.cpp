@@ -181,6 +181,11 @@ void RenderEditorUI(Editor& UIEditor)
         {
             UIEditor.OnGenerateButtonClicked();
         }
+        ImGui::SameLine(130.0, 10.0);
+        if (ImGui::Button("Output SDF For Selected", ImVec2(200, 20)))
+        {
+            UIEditor.OnSDFOutputButtonClicked();
+        }
         ImGui::SameLine();
         ImGui::TextColored(ImVec4(1, 1, 0, 1), UIEditor.GenerateHintText);
 
@@ -353,7 +358,7 @@ void Editor::OnAddButtonClicked()
         TextureboxList.push_back(Item);
     }
 
-    snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Added", (int)TextureboxList.size());
+    snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d texture(s) added", (int)TextureboxList.size());
 
     ItemIter it;
     for (it = TextureboxList.begin(); it != TextureboxList.end(); it++)
@@ -393,7 +398,7 @@ void Editor::OnDeleteButtonClicked()
     PreviewRenderer.ClearTexture();
     Generated = false;
 
-    snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Added", (int)TextureboxList.size());
+    snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d texture(s) added", (int)TextureboxList.size());
 }
 
 
@@ -418,7 +423,7 @@ void Editor::OnDeleteAllButtonClicked()
     PreviewRenderer.ClearTexture();
     Generated = false;
 
-    snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Added", (int)TextureboxList.size());
+    snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d texture(s) added", (int)TextureboxList.size());
 }
 
 
@@ -452,7 +457,7 @@ void Editor::OnReloadSelectedClicked()
     {
         PreviewRenderer.ClearTexture();
         Generated = false;
-        snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d Textures Reloaded", ReloadedNum);
+        snprintf(TextureboxStateText, TEXTUREBOX_STATE_TEXT_SIZE, "%d texture(s) reloaded", ReloadedNum);
     }
 }
 
@@ -464,10 +469,10 @@ void Editor::OnGenerateButtonClicked()
     int Width;
     int Height;
 
-    if (TextureboxList.size() < 2)
+    if (TextureboxList.size() < 1)
     {
         Ready = false;
-        snprintf(GenerateHintText, HINT_TEXT_SIZE, "Please add at least 2 texture");
+        snprintf(GenerateHintText, HINT_TEXT_SIZE, "Please add at least 1 texture");
     }
     else {
         for (int i = 0; i < TextureboxList.size(); i++)
@@ -487,7 +492,7 @@ void Editor::OnGenerateButtonClicked()
             }
             if (Width != Item.Width || Height != Item.Height)
             {
-                snprintf(GenerateHintText, HINT_TEXT_SIZE, "The width and height of Texture %d is not consistent with the others", i);
+                snprintf(GenerateHintText, HINT_TEXT_SIZE, "The width and height of texture %d is not consistent with the others", i);
                 Ready = false;
                 break;
             }
@@ -523,10 +528,44 @@ void Editor::OnGenerateButtonClicked()
             PreviewDirty = true;
             Generated = false;
         }
-        
+
     }
 }
 
+
+void Editor::OnSDFOutputButtonClicked()
+{
+    if (!Generated) {
+        if (AsyncProcesser && AsyncProcesser->IsWorking())
+            snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
+        else
+            snprintf(GenerateHintText, HINT_TEXT_SIZE, "Please press generate button before output");
+        return;
+    }
+    snprintf(GenerateHintText, HINT_TEXT_SIZE, "");
+
+    int Successed = 0;
+    for (TextureboxItem Item : TextureboxList)
+    {
+        if (Item.Selected && Item.SDFData != nullptr)
+        {
+            std::string OutputFileName;
+            int NamePosStart = Item.Path.find_last_of('\\') + 1;
+            int NamePosEnd = Item.Path.find_last_of('.');
+            if (NamePosEnd < NamePosStart)
+            {
+                NamePosEnd = Item.Path.size() - NamePosStart;
+            }
+            OutputFileName = Item.Path.substr(NamePosStart, NamePosEnd-NamePosStart);
+            OutputFileName += "_sdf.png";
+
+            if (OutputToSingleChannelPNG((PackData*)Item.SDFData, OutputFileName.c_str(), Item.Width, Item.Height, true))
+                Successed++;
+        }
+    }
+
+    snprintf(GenerateHintText, HINT_TEXT_SIZE, "%d texture(s) exported", Successed);
+}
 
 
 void Editor::OnBakeButtonClicked()
@@ -536,6 +575,11 @@ void Editor::OnBakeButtonClicked()
             snprintf(ProgressHintText, HINT_TEXT_SIZE, "There are stll some work handing, please wait..");
         else
             snprintf(BakeHintText, HINT_TEXT_SIZE, "Please press generate button first");
+        return;
+    }
+    else if (TextureboxList.size() < 2)
+    {
+        snprintf(BakeHintText, HINT_TEXT_SIZE, "Please at least add 2 texture and get generated for them before baking");
         return;
     }
     snprintf(BakeHintText, HINT_TEXT_SIZE, "");
@@ -1158,6 +1202,13 @@ void PreviewTextureRenderer::CalculateCurrentSampleTextureSlot()
 
         TextureViewsToRender[0] = TextureViews[StartTextureId];
         TextureViewsToRender[1] = TextureViews[StartTextureId+1];
+    }
+    else if (NumTextures >= 1)
+    {
+        StartThreshold = 0.0f;
+        EndThreshold = 1.0f;
+        TextureViewsToRender[0] = TextureViews[0];
+        TextureViewsToRender[1] = TextureViews[0];
     }
     else
     {
