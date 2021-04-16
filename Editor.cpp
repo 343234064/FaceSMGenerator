@@ -175,6 +175,8 @@ void RenderEditorUI(Editor& UIEditor)
         ImGui::BulletText("2nd Step:Press generate button to generate preview the procedural changes\nYou can slide the slider in the preivew window to preview the changing");
 
         ImGui::Text("");
+        ImGui::SameLine(20.0, 10.0);
+        ImGui::TextColored(ImVec4(1, 1, 0, 1), UIEditor.GenerateHintText);
         ImGui::Text("");
         ImGui::SameLine(20.0, 10.0);
         if (ImGui::Button("Generate", ImVec2(100, 20)))
@@ -182,12 +184,11 @@ void RenderEditorUI(Editor& UIEditor)
             UIEditor.OnGenerateButtonClicked();
         }
         ImGui::SameLine(130.0, 10.0);
-        if (ImGui::Button("Output SDF For Selected", ImVec2(200, 20)))
+        if (ImGui::Button("Output Single Procedural Map For Selected", ImVec2(300, 20)))
         {
             UIEditor.OnSDFOutputButtonClicked();
         }
-        ImGui::SameLine();
-        ImGui::TextColored(ImVec4(1, 1, 0, 1), UIEditor.GenerateHintText);
+        
 
         ImGui::Separator();
         ImGui::Text("");
